@@ -64,8 +64,8 @@ export function ChatInterface() {
         }
 
         console.log('Received messages:', data.messages);
-        // Remove the .reverse() here since the messages are already in the correct order from the backend
-        setMessages(data.messages);
+        // Reverse the messages to show newest at the bottom
+        setMessages([...data.messages].reverse());
       } catch (error) {
         console.error('Error fetching messages:', error);
         toast({
@@ -95,7 +95,7 @@ export function ChatInterface() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Add user message
+      // Add user message to the end of the list
       const userMessage = { content, isUser: true, timestamp: Date.now() };
       setMessages(prev => [...prev, userMessage]);
 
@@ -117,7 +117,7 @@ export function ChatInterface() {
 
       if (response.error) throw new Error(response.error.message);
       
-      // Add AI response
+      // Add AI response to the end of the list
       const aiMessage = {
         content: response.data.reply,
         isUser: false,
