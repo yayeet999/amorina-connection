@@ -13,6 +13,11 @@ serve(async (req) => {
   }
 
   try {
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openaiApiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
+
     const { message, userProfile } = await req.json();
 
     const systemPrompt = `You are Amorine, a compassionate and understanding AI companion. 
@@ -42,18 +47,20 @@ serve(async (req) => {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(openaiRequest),
     });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('OpenAI API error response:', errorData);
+      throw new Error(`OpenAI API error: ${errorData.error?.message || JSON.stringify(errorData)}`);
+    }
+
     const data = await response.json();
     console.log('OpenAI API raw response:', data);
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${data.error?.message || JSON.stringify(data)}`);
-    }
 
     // Validate the response structure
     if (!data || !data.choices) {
