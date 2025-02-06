@@ -20,7 +20,7 @@ serve(async (req) => {
     in the ${userProfile?.age_range || 'adult'} age range. Keep responses warm, personal, and engaging.`;
 
     console.log('Making OpenAI API request with:', {
-      model: 'gpt-4o-mini',
+      model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
       systemPrompt,
       message
     });
