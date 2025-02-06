@@ -6,15 +6,22 @@ const UPSTASH_URL = Deno.env.get('UPSTASH_REDIS_REST_URL');
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    if (!UPSTASH_URL) {
+      throw new Error('UPSTASH_REDIS_REST_URL is not configured');
+    }
+
     const { userId, action, message } = await req.json();
+    console.log('Received request:', { userId, action, message });
 
     if (!userId) {
       throw new Error('User ID is required');
@@ -27,10 +34,17 @@ serve(async (req) => {
         throw new Error('Message is required for store action');
       }
 
+      console.log('Storing message:', message);
       // Store message in Redis
       const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}/${JSON.stringify(message)}`, {
         method: 'POST',
       });
+
+      if (!storeResponse.ok) {
+        const errorText = await storeResponse.text();
+        console.error('Redis store error:', errorText);
+        throw new Error(`Redis store error: ${errorText}`);
+      }
 
       // Trim to keep only last 100 messages
       await fetch(`${UPSTASH_URL}/ltrim/${messageKey}/0/99`, {
@@ -44,11 +58,18 @@ serve(async (req) => {
     } 
     
     if (action === 'retrieve') {
+      console.log('Retrieving messages for key:', messageKey);
       // Retrieve last 100 messages
       const retrieveResponse = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
         method: 'GET',
       });
       
+      if (!retrieveResponse.ok) {
+        const errorText = await retrieveResponse.text();
+        console.error('Redis retrieve error:', errorText);
+        throw new Error(`Redis retrieve error: ${errorText}`);
+      }
+
       const messages = await retrieveResponse.json();
       return new Response(JSON.stringify({ 
         success: true, 
