@@ -43,7 +43,7 @@ serve(async (req) => {
         throw new Error('Message with content is required for store action');
       }
 
-      // Ensure message is a properly formatted object
+      // Store message directly without extra stringification
       const messageToStore = {
         content: message.content,
         isUser: message.isUser,
@@ -52,12 +52,11 @@ serve(async (req) => {
 
       console.log('Storing message:', messageToStore);
       
-      // Store message in Redis
       const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          args: [JSON.stringify(messageToStore)]
+          args: [JSON.stringify(messageToStore)]  // Only stringify once
         })
       });
 
@@ -94,17 +93,27 @@ serve(async (req) => {
       }
 
       const data = await retrieveResponse.json();
+      console.log('Raw Redis response:', data);
+
       // Parse each message and filter out any invalid ones
       const messages = data.result
         .map((m: string) => {
           try {
-            return JSON.parse(m);
+            // Parse the stored JSON string into an object
+            const parsed = JSON.parse(m);
+            if (!parsed.content || typeof parsed.isUser !== 'boolean') {
+              console.warn('Invalid message format:', parsed);
+              return null;
+            }
+            return parsed;
           } catch (e) {
             console.error('Failed to parse message:', m, e);
             return null;
           }
         })
-        .filter((m: any) => m !== null && m.content);
+        .filter((m: any) => m !== null);
+
+      console.log('Parsed messages:', messages);
 
       return new Response(JSON.stringify({ 
         success: true, 
