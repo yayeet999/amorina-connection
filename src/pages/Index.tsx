@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -72,7 +71,7 @@ export default function Index() {
           </Button>
         </div>
       </header>
-
+      
       {/* Main Content with padding-top to account for fixed header */}
       <div className="flex-1 pt-20">
         <div className="w-full max-w-4xl mx-auto text-center space-y-8 animate-fade-in px-4">
