@@ -43,7 +43,7 @@ serve(async (req) => {
         throw new Error('Message with content is required for store action');
       }
 
-      // Simplified message structure
+      // Simple message structure
       const messageToStore = {
         type: message.isUser ? 'user' : 'assistant',
         content: message.content,
@@ -52,16 +52,15 @@ serve(async (req) => {
 
       console.log('Storing message:', messageToStore);
       
-      const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
+      // Store the message directly in Redis
+      const response = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          args: [JSON.stringify(messageToStore)]
-        })
+        body: JSON.stringify([JSON.stringify(messageToStore)])
       });
 
-      if (!storeResponse.ok) {
-        const errorText = await storeResponse.text();
+      if (!response.ok) {
+        const errorText = await response.text();
         console.error('Redis store error:', errorText);
         throw new Error(`Redis store error: ${errorText}`);
       }
@@ -70,32 +69,33 @@ serve(async (req) => {
       await fetch(`${UPSTASH_URL}/ltrim/${messageKey}/0/99`, {
         method: 'POST',
         headers,
+        body: JSON.stringify([])
       });
 
-      const storeData = await storeResponse.json();
-      return new Response(JSON.stringify({ success: true, data: storeData }), {
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } 
     
     if (action === 'retrieve') {
       console.log('Retrieving messages for key:', messageKey);
-      const retrieveResponse = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
-        method: 'GET',
+      const response = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
+        method: 'POST',
         headers,
+        body: JSON.stringify([])
       });
       
-      if (!retrieveResponse.ok) {
-        const errorText = await retrieveResponse.text();
+      if (!response.ok) {
+        const errorText = await response.text();
         console.error('Redis retrieve error:', errorText);
         throw new Error(`Redis retrieve error: ${errorText}`);
       }
 
-      const data = await retrieveResponse.json();
-      console.log('Raw Redis response:', data);
+      const result = await response.json();
+      console.log('Raw Redis response:', result);
 
-      // Parse messages with new format
-      const messages = data.result
+      // Parse messages and convert to frontend format
+      const messages = (result.result || [])
         .map((m: string) => {
           try {
             const parsed = JSON.parse(m);
