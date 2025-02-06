@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -43,7 +42,7 @@ serve(async (req) => {
         throw new Error('Message with content is required for store action');
       }
 
-      // Simple message structure
+      // Direct message structure without any wrapping
       const messageToStore = {
         type: message.isUser ? 'user' : 'assistant',
         content: message.content,
@@ -52,7 +51,7 @@ serve(async (req) => {
 
       console.log('Storing message:', messageToStore);
       
-      // Store the message directly in Redis
+      // Store message directly without any wrapping
       const response = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
         method: 'POST',
         headers,
@@ -94,15 +93,11 @@ serve(async (req) => {
       const result = await response.json();
       console.log('Raw Redis response:', result);
 
-      // Parse messages and convert to frontend format
+      // Parse messages to frontend format
       const messages = (result.result || [])
         .map((m: string) => {
           try {
             const parsed = JSON.parse(m);
-            if (!parsed.type || !parsed.content || !parsed.timestamp) {
-              console.warn('Invalid message format:', parsed);
-              return null;
-            }
             return {
               content: parsed.content,
               isUser: parsed.type === 'user',
