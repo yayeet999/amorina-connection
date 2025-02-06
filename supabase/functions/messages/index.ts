@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -11,25 +12,18 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    if (!UPSTASH_URL) {
-      throw new Error('UPSTASH_REDIS_REST_URL is not configured');
-    }
-    if (!UPSTASH_TOKEN) {
-      throw new Error('UPSTASH_REDIS_REST_TOKEN is not configured');
-    }
+    if (!UPSTASH_URL) throw new Error('UPSTASH_REDIS_REST_URL is not configured');
+    if (!UPSTASH_TOKEN) throw new Error('UPSTASH_REDIS_REST_TOKEN is not configured');
 
     const { userId, action, message } = await req.json();
     console.log('Received request:', { userId, action, message });
 
-    if (!userId) {
-      throw new Error('User ID is required');
-    }
+    if (!userId) throw new Error('User ID is required');
 
     const messageKey = `chat:${userId}:messages`;
     const headers = {
@@ -38,11 +32,10 @@ serve(async (req) => {
     };
 
     if (action === 'store') {
-      if (!message || !message.content) {
-        throw new Error('Message with content is required for store action');
+      if (!message?.content) {
+        throw new Error('Message content is required');
       }
 
-      // Direct message structure without any wrapping
       const messageToStore = {
         type: message.isUser ? 'user' : 'assistant',
         content: message.content,
@@ -50,16 +43,16 @@ serve(async (req) => {
       };
 
       console.log('Storing message:', messageToStore);
-      
-      // Store message directly without any wrapping
-      const response = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
+
+      // Store message in Redis
+      const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
         method: 'POST',
         headers,
         body: JSON.stringify([JSON.stringify(messageToStore)])
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (!storeResponse.ok) {
+        const errorText = await storeResponse.text();
         console.error('Redis store error:', errorText);
         throw new Error(`Redis store error: ${errorText}`);
       }
@@ -74,47 +67,54 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
-    } 
-    
+    }
+
     if (action === 'retrieve') {
       console.log('Retrieving messages for key:', messageKey);
+      
       const response = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
         method: 'POST',
         headers,
         body: JSON.stringify([])
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Redis retrieve error:', errorText);
         throw new Error(`Redis retrieve error: ${errorText}`);
       }
 
-      const result = await response.json();
-      console.log('Raw Redis response:', result);
+      const data = await response.json();
+      console.log('Raw Redis response:', data);
 
-      // Parse messages to frontend format
-      const messages = (result.result || [])
-        .map((m: string) => {
-          try {
-            const parsed = JSON.parse(m);
-            return {
-              content: parsed.content,
-              isUser: parsed.type === 'user',
-              timestamp: parsed.timestamp
-            };
-          } catch (e) {
-            console.error('Failed to parse message:', m, e);
+      if (!Array.isArray(data.result)) {
+        console.error('Invalid Redis response format:', data);
+        throw new Error('Invalid Redis response format');
+      }
+
+      const messages = data.result.map((item: string) => {
+        try {
+          const parsed = JSON.parse(item);
+          if (!parsed.type || !parsed.content || !parsed.timestamp) {
+            console.warn('Invalid message format:', parsed);
             return null;
           }
-        })
-        .filter((m: any) => m !== null);
+          return {
+            content: parsed.content,
+            isUser: parsed.type === 'user',
+            timestamp: parsed.timestamp
+          };
+        } catch (e) {
+          console.error('Failed to parse message:', item, e);
+          return null;
+        }
+      }).filter(Boolean);
 
       console.log('Parsed messages:', messages);
 
       return new Response(JSON.stringify({ 
         success: true, 
-        messages
+        messages: messages.reverse() 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
