@@ -32,7 +32,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
