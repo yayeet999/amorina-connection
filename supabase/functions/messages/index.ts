@@ -1,7 +1,9 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const UPSTASH_URL = Deno.env.get('UPSTASH_REDIS_REST_URL');
+const UPSTASH_TOKEN = Deno.env.get('UPSTASH_REDIS_REST_TOKEN');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,6 +21,9 @@ serve(async (req) => {
     if (!UPSTASH_URL) {
       throw new Error('UPSTASH_REDIS_REST_URL is not configured');
     }
+    if (!UPSTASH_TOKEN) {
+      throw new Error('UPSTASH_REDIS_REST_TOKEN is not configured');
+    }
 
     const { userId, action, message } = await req.json();
     console.log('Received request:', { userId, action, message });
@@ -28,6 +33,10 @@ serve(async (req) => {
     }
 
     const messageKey = `chat:${userId}:messages`;
+    const headers = {
+      Authorization: `Bearer ${UPSTASH_TOKEN}`,
+      'Content-Type': 'application/json',
+    };
 
     if (action === 'store') {
       if (!message) {
@@ -38,6 +47,7 @@ serve(async (req) => {
       // Store message in Redis
       const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}/${JSON.stringify(message)}`, {
         method: 'POST',
+        headers,
       });
 
       if (!storeResponse.ok) {
@@ -49,6 +59,7 @@ serve(async (req) => {
       // Trim to keep only last 100 messages
       await fetch(`${UPSTASH_URL}/ltrim/${messageKey}/0/99`, {
         method: 'POST',
+        headers,
       });
 
       const storeData = await storeResponse.json();
@@ -62,6 +73,7 @@ serve(async (req) => {
       // Retrieve last 100 messages
       const retrieveResponse = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
         method: 'GET',
+        headers,
       });
       
       if (!retrieveResponse.ok) {
