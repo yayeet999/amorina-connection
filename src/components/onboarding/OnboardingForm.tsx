@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { Male, Female, User } from "lucide-react";
+import { UserRound, User, Users } from "lucide-react";
 
 const AGE_RANGES = ["18-24", "25-34", "35+"];
 const GENDERS = [
-  { value: "male", label: "Male", icon: Male },
-  { value: "female", label: "Female", icon: Female },
-  { value: "non-binary", label: "Non-Binary", icon: User },
+  { value: "male", label: "Male", icon: UserRound },
+  { value: "female", label: "Female", icon: User },
+  { value: "non-binary", label: "Non-Binary", icon: Users },
 ];
 
 export function OnboardingForm() {
