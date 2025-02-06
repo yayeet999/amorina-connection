@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Heart } from "lucide-react";
+import { Heart, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Auth() {
@@ -52,8 +52,17 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#FFF0F5] to-[#FFFAFA] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-6 space-y-8">
+    <div className="min-h-screen bg-gradient-to-b from-[#FFF0F5] to-[#FFFAFA] flex flex-col items-center justify-center p-4 relative">
+      <Button
+        variant="ghost"
+        onClick={() => navigate('/')}
+        className="absolute top-4 left-4 flex items-center gap-2 text-muted-foreground hover:text-secondary"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Home
+      </Button>
+
+      <Card className="w-full max-w-md p-8 space-y-8 relative">
         <div className="flex flex-col items-center space-y-2">
           <Heart className="w-12 h-12 text-secondary" />
           <h1 className="text-2xl font-bold text-gradient">
@@ -66,6 +75,29 @@ export default function Auth() {
           </p>
         </div>
 
+        <div className="flex w-full rounded-lg overflow-hidden">
+          <button
+            onClick={() => setIsSignUp(false)}
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${
+              !isSignUp
+                ? "bg-secondary text-white"
+                : "bg-secondary/10 text-muted-foreground hover:bg-secondary/20"
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            onClick={() => setIsSignUp(true)}
+            className={`flex-1 py-2 text-sm font-medium transition-colors ${
+              isSignUp
+                ? "bg-secondary text-white"
+                : "bg-secondary/10 text-muted-foreground hover:bg-secondary/20"
+            }`}
+          >
+            Sign Up
+          </button>
+        </div>
+
         <form onSubmit={handleAuth} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -76,6 +108,7 @@ export default function Auth() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="bg-white/50"
             />
           </div>
           <div className="space-y-2">
@@ -87,24 +120,36 @@ export default function Auth() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="bg-white/50"
             />
           </div>
 
           <Button
             type="submit"
-            className="w-full"
+            className="w-full bg-secondary hover:bg-secondary-hover text-white"
             disabled={loading}
           >
             {loading
               ? "Loading..."
               : isSignUp
-              ? "Sign Up"
+              ? "Create Account"
               : "Sign In"}
           </Button>
 
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
           <Button
             type="button"
-            variant="ghost"
+            variant="outline"
             className="w-full"
             onClick={() => supabase.auth.signInWithOAuth({
               provider: 'google',
@@ -116,18 +161,6 @@ export default function Auth() {
             Continue with Google
           </Button>
         </form>
-
-        <div className="text-center">
-          <Button
-            variant="link"
-            onClick={() => setIsSignUp(!isSignUp)}
-            className="text-muted-foreground"
-          >
-            {isSignUp
-              ? "Already have an account? Sign In"
-              : "Don't have an account? Sign Up"}
-          </Button>
-        </div>
       </Card>
     </div>
   );
