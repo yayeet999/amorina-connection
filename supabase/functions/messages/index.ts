@@ -39,15 +39,26 @@ serve(async (req) => {
     };
 
     if (action === 'store') {
-      if (!message) {
-        throw new Error('Message is required for store action');
+      if (!message || !message.content) {
+        throw new Error('Message with content is required for store action');
       }
 
-      console.log('Storing message:', message);
+      // Ensure message is a properly formatted object
+      const messageToStore = {
+        content: message.content,
+        isUser: message.isUser,
+        timestamp: message.timestamp || Date.now()
+      };
+
+      console.log('Storing message:', messageToStore);
+      
       // Store message in Redis
-      const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}/${JSON.stringify(message)}`, {
+      const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
         method: 'POST',
         headers,
+        body: JSON.stringify({
+          args: [JSON.stringify(messageToStore)]
+        })
       });
 
       if (!storeResponse.ok) {
@@ -82,10 +93,22 @@ serve(async (req) => {
         throw new Error(`Redis retrieve error: ${errorText}`);
       }
 
-      const messages = await retrieveResponse.json();
+      const data = await retrieveResponse.json();
+      // Parse each message and filter out any invalid ones
+      const messages = data.result
+        .map((m: string) => {
+          try {
+            return JSON.parse(m);
+          } catch (e) {
+            console.error('Failed to parse message:', m, e);
+            return null;
+          }
+        })
+        .filter((m: any) => m !== null && m.content);
+
       return new Response(JSON.stringify({ 
         success: true, 
-        messages: messages.result.map((m: string) => JSON.parse(m))
+        messages
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

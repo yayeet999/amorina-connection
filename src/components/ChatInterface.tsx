@@ -40,8 +40,12 @@ export function ChatInterface() {
     const fetchMessages = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          console.log('No user found, skipping message fetch');
+          return;
+        }
 
+        console.log('Fetching messages for user:', user.id);
         const { data, error } = await supabase.functions.invoke('messages', {
           body: { 
             action: 'retrieve',
@@ -49,15 +53,23 @@ export function ChatInterface() {
           },
         });
 
-        if (error) throw error;
-        if (data.messages) {
-          setMessages(data.messages.reverse());
+        if (error) {
+          console.error('Error fetching messages:', error);
+          throw error;
         }
+
+        if (!data?.messages) {
+          console.error('No messages found in response:', data);
+          throw new Error('No messages found in response');
+        }
+
+        console.log('Received messages:', data.messages);
+        setMessages(data.messages.reverse());
       } catch (error) {
         console.error('Error fetching messages:', error);
         toast({
           title: "Error",
-          description: "Failed to load chat history",
+          description: "Failed to load chat history. Please try refreshing the page.",
           variant: "destructive",
         });
       }
@@ -87,13 +99,15 @@ export function ChatInterface() {
       setMessages(prev => [...prev, userMessage]);
 
       // Store user message in Redis
-      await supabase.functions.invoke('messages', {
+      const { error: storeError } = await supabase.functions.invoke('messages', {
         body: {
           action: 'store',
           userId: user.id,
           message: userMessage
         },
       });
+
+      if (storeError) throw storeError;
 
       // Get AI response
       const response = await supabase.functions.invoke('chat', {
@@ -111,15 +125,18 @@ export function ChatInterface() {
       setMessages(prev => [...prev, aiMessage]);
 
       // Store AI message in Redis
-      await supabase.functions.invoke('messages', {
+      const { error: aiStoreError } = await supabase.functions.invoke('messages', {
         body: {
           action: 'store',
           userId: user.id,
           message: aiMessage
         },
       });
+
+      if (aiStoreError) throw aiStoreError;
       
     } catch (error) {
+      console.error('Error sending message:', error);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
