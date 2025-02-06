@@ -64,7 +64,8 @@ export function ChatInterface() {
         }
 
         console.log('Received messages:', data.messages);
-        setMessages(data.messages.reverse());
+        // Remove the .reverse() here since the messages are already in the correct order from the backend
+        setMessages(data.messages);
       } catch (error) {
         console.error('Error fetching messages:', error);
         toast({

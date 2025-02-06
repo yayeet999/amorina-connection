@@ -44,7 +44,7 @@ serve(async (req) => {
         throw new Error('Message content is required');
       }
 
-      // Create message object
+      // Create message object with the simplified structure
       const messageToStore = {
         type: message.isUser ? 'user' : 'assistant',
         content: message.content,
@@ -78,6 +78,7 @@ serve(async (req) => {
       const listLength = await redis.llen(key);
       console.log('Total messages in Redis:', listLength);
       
+      // Get messages from Redis (already in reverse chronological order due to LPUSH)
       const rawMessages = await redis.lrange(key, 0, 99);
       console.log('Retrieved messages from Redis:', rawMessages.length);
 
@@ -102,10 +103,11 @@ serve(async (req) => {
 
       console.log('Successfully parsed messages count:', messages.length);
 
+      // No need to reverse here - messages are already in reverse chronological order due to LPUSH
       return new Response(
         JSON.stringify({ 
           success: true, 
-          messages: messages.reverse() 
+          messages: messages 
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
