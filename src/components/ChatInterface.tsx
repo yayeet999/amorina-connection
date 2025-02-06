@@ -59,8 +59,8 @@ export function ChatInterface() {
         }
 
         if (!data?.messages) {
-          console.error('No messages found in response:', data);
-          throw new Error('No messages found in response');
+          console.warn('No messages found in response:', data);
+          return;
         }
 
         console.log('Received messages:', data.messages);

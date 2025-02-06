@@ -43,11 +43,11 @@ serve(async (req) => {
         throw new Error('Message with content is required for store action');
       }
 
-      // Store message directly without extra stringification
+      // Simplified message structure
       const messageToStore = {
+        type: message.isUser ? 'user' : 'assistant',
         content: message.content,
-        isUser: message.isUser,
-        timestamp: message.timestamp || Date.now()
+        timestamp: Date.now()
       };
 
       console.log('Storing message:', messageToStore);
@@ -56,7 +56,7 @@ serve(async (req) => {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          args: [JSON.stringify(messageToStore)]  // Only stringify once
+          args: [JSON.stringify(messageToStore)]
         })
       });
 
@@ -80,7 +80,6 @@ serve(async (req) => {
     
     if (action === 'retrieve') {
       console.log('Retrieving messages for key:', messageKey);
-      // Retrieve last 100 messages
       const retrieveResponse = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
         method: 'GET',
         headers,
@@ -95,17 +94,20 @@ serve(async (req) => {
       const data = await retrieveResponse.json();
       console.log('Raw Redis response:', data);
 
-      // Parse each message and filter out any invalid ones
+      // Parse messages with new format
       const messages = data.result
         .map((m: string) => {
           try {
-            // Parse the stored JSON string into an object
             const parsed = JSON.parse(m);
-            if (!parsed.content || typeof parsed.isUser !== 'boolean') {
+            if (!parsed.type || !parsed.content || !parsed.timestamp) {
               console.warn('Invalid message format:', parsed);
               return null;
             }
-            return parsed;
+            return {
+              content: parsed.content,
+              isUser: parsed.type === 'user',
+              timestamp: parsed.timestamp
+            };
           } catch (e) {
             console.error('Failed to parse message:', m, e);
             return null;
