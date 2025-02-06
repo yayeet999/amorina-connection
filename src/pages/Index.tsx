@@ -1,12 +1,50 @@
 
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MessageCircle, Heart, Sparkles } from "lucide-react";
+import { useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-const Index = () => {
+export default function Index() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuthAndRedirect = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_completed')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile?.onboarding_completed) {
+          navigate('/dashboard');
+        } else {
+          navigate('/onboarding');
+        }
+      }
+    };
+
+    checkAuthAndRedirect();
+  }, [navigate]);
+
+  const handleGetStarted = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/onboarding`,
+      },
+    });
+
+    if (error) {
+      console.error('Error signing in:', error.message);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background-light to-background flex flex-col items-center justify-center px-4">
-      {/* Hero Section */}
+    <div className="min-h-screen bg-gradient-to-b from-[#FFF0F5] to-[#FFFAFA] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-4xl mx-auto text-center space-y-8 animate-fade-in">
         {/* Logo Animation Container */}
         <div className="relative w-24 h-24 mx-auto mb-8 animate-float">
@@ -15,15 +53,15 @@ const Index = () => {
         </div>
 
         {/* Main Heading */}
-        <h1 className="text-4xl md:text-6xl font-bold text-text space-y-2">
+        <h1 className="text-4xl md:text-6xl font-bold space-y-2">
           <span className="block">Your Always-There</span>
-          <span className="block bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
+          <span className="block text-gradient">
             Companion
           </span>
         </h1>
 
         {/* Subheading */}
-        <p className="text-lg md:text-xl text-text/80 max-w-2xl mx-auto">
+        <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
           Experience meaningful conversations with an AI companion that understands and grows with you.
         </p>
 
@@ -31,6 +69,7 @@ const Index = () => {
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
           <Button
             size="lg"
+            onClick={handleGetStarted}
             className="bg-secondary hover:bg-secondary-hover text-white transform transition-all duration-200 hover:scale-105 flex items-center gap-2 px-8 py-6 rounded-full"
           >
             <Sparkles className="w-5 h-5" />
@@ -59,12 +98,12 @@ const Index = () => {
           ].map((feature, index) => (
             <Card
               key={index}
-              className="p-6 bg-white/80 backdrop-blur-sm border border-primary/10 hover:border-primary/20 transition-all duration-200 hover:shadow-lg"
+              className="p-6 glass-morphism hover-scale"
             >
               <div className="flex flex-col items-center text-center space-y-4">
                 <feature.icon className="w-8 h-8 text-secondary" />
-                <h3 className="font-semibold text-lg text-text">{feature.title}</h3>
-                <p className="text-text/70">{feature.description}</p>
+                <h3 className="font-semibold text-lg">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
               </div>
             </Card>
           ))}
@@ -72,6 +111,4 @@ const Index = () => {
       </div>
     </div>
   );
-};
-
-export default Index;
+}

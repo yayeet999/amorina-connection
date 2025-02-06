@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatBubble } from "./ChatBubble";
 import { ChatInput } from "./ChatInput";
+import { TypingIndicator } from "./TypingIndicator";
 import { useToast } from "@/hooks/use-toast";
 
 interface Message {
@@ -86,6 +87,7 @@ export function ChatInterface() {
             isUser={message.isUser}
           />
         ))}
+        {isLoading && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
       <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
