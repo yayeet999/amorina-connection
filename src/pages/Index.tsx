@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,19 +30,6 @@ export default function Index() {
     checkAuthAndRedirect();
   }, [navigate]);
 
-  const handleGetStarted = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/onboarding`,
-      },
-    });
-
-    if (error) {
-      console.error('Error signing in:', error.message);
-    }
-  };
-
   const handleLogin = () => {
     navigate('/auth');
   };
@@ -61,13 +49,6 @@ export default function Index() {
             className="text-muted-foreground hover:text-secondary"
           >
             Login
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={handleGetStarted}
-            className="hover:bg-secondary-hover"
-          >
-            Get Started
           </Button>
         </div>
       </header>
@@ -98,7 +79,7 @@ export default function Index() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
             <Button
               size="lg"
-              onClick={handleGetStarted}
+              onClick={handleLogin}
               className="bg-secondary hover:bg-secondary-hover text-white transform transition-all duration-200 hover:scale-105 flex items-center gap-2 px-8 py-6 rounded-full"
             >
               <Sparkles className="w-5 h-5" />
@@ -141,4 +122,4 @@ export default function Index() {
       </div>
     </div>
   );
-}
+};
