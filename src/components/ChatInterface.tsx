@@ -35,6 +35,37 @@ export function ChatInterface() {
     },
   });
 
+  // Fetch messages from Redis when component mounts
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase.functions.invoke('messages', {
+          body: { 
+            action: 'retrieve',
+            userId: user.id
+          },
+        });
+
+        if (error) throw error;
+        if (data.messages) {
+          setMessages(data.messages.reverse());
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load chat history",
+          variant: "destructive",
+        });
+      }
+    };
+
+    fetchMessages();
+  }, [toast]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -47,9 +78,22 @@ export function ChatInterface() {
     try {
       setIsLoading(true);
       
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       // Add user message
       const userMessage = { content, isUser: true, timestamp: Date.now() };
       setMessages(prev => [...prev, userMessage]);
+
+      // Store user message in Redis
+      await supabase.functions.invoke('messages', {
+        body: {
+          action: 'store',
+          userId: user.id,
+          message: userMessage
+        },
+      });
 
       // Get AI response
       const response = await supabase.functions.invoke('chat', {
@@ -65,6 +109,15 @@ export function ChatInterface() {
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, aiMessage]);
+
+      // Store AI message in Redis
+      await supabase.functions.invoke('messages', {
+        body: {
+          action: 'store',
+          userId: user.id,
+          message: aiMessage
+        },
+      });
       
     } catch (error) {
       toast({
