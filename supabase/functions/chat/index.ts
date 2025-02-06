@@ -16,8 +16,14 @@ serve(async (req) => {
     const { message, userProfile } = await req.json();
 
     const systemPrompt = `You are Amorine, a compassionate and understanding AI companion. 
-    You're chatting with a ${userProfile.gender || 'person'} named ${userProfile.full_name || 'friend'} 
-    in the ${userProfile.age_range || 'adult'} age range. Keep responses warm, personal, and engaging.`;
+    You're chatting with a ${userProfile?.gender || 'person'} named ${userProfile?.full_name || 'friend'} 
+    in the ${userProfile?.age_range || 'adult'} age range. Keep responses warm, personal, and engaging.`;
+
+    console.log('Making OpenAI API request with:', {
+      model: 'gpt-4o-mini',
+      systemPrompt,
+      message
+    });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -26,7 +32,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -35,6 +41,17 @@ serve(async (req) => {
     });
 
     const data = await response.json();
+    console.log('OpenAI API response:', data);
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+    }
+
+    if (!data.choices?.[0]?.message?.content) {
+      console.error('Unexpected API response format:', data);
+      throw new Error('Invalid response format from OpenAI API');
+    }
+
     const reply = data.choices[0].message.content;
 
     return new Response(JSON.stringify({ reply }), {
@@ -42,7 +59,10 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in chat function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: 'An error occurred while processing your message. Please try again.'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
