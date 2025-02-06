@@ -103,7 +103,7 @@ export default function Index() {
               className="bg-secondary hover:bg-secondary-hover text-white transform transition-all duration-200 hover:scale-105 flex items-center gap-2 px-8 py-6 rounded-full"
             >
               <Sparkles className="w-5 h-5" />
-              <span>Start Free Trial</span>
+              <span>Meet Amorine →</span>
             </Button>
           </div>
 
