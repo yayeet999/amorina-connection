@@ -1,41 +1,50 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
 
-const UPSTASH_URL = Deno.env.get('UPSTASH_REDIS_REST_URL');
-const UPSTASH_TOKEN = Deno.env.get('UPSTASH_REDIS_REST_TOKEN');
+const redis = new Redis({
+  url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
+  token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
+});
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    if (!UPSTASH_URL) throw new Error('UPSTASH_REDIS_REST_URL is not configured');
-    if (!UPSTASH_TOKEN) throw new Error('UPSTASH_REDIS_REST_TOKEN is not configured');
+    // Test Redis connection
+    try {
+      await redis.ping();
+      console.log('Redis connection successful');
+    } catch (redisError) {
+      console.error('Redis connection failed:', redisError);
+      throw new Error('Redis connection failed');
+    }
 
     const { userId, action, message } = await req.json();
     console.log('Received request:', { userId, action, message });
 
-    if (!userId) throw new Error('User ID is required');
+    if (!userId) {
+      console.error('Missing userId in request');
+      throw new Error('User ID is required');
+    }
 
-    const messageKey = `chat:${userId}:messages`;
-    const headers = {
-      Authorization: `Bearer ${UPSTASH_TOKEN}`,
-      'Content-Type': 'application/json',
-    };
+    const key = `chat:${userId}:messages`;
+    console.log('Redis key:', key);
 
     if (action === 'store') {
       if (!message?.content) {
+        console.error('Missing content in message');
         throw new Error('Message content is required');
       }
 
+      // Create message object
       const messageToStore = {
         type: message.isUser ? 'user' : 'assistant',
         content: message.content,
@@ -43,58 +52,39 @@ serve(async (req) => {
       };
 
       console.log('Storing message:', messageToStore);
+      
+      // Store message as JSON string
+      const pushResult = await redis.lpush(key, JSON.stringify(messageToStore));
+      console.log('Redis push result:', pushResult);
 
-      // Store message in Redis
-      const storeResponse = await fetch(`${UPSTASH_URL}/lpush/${messageKey}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify([JSON.stringify(messageToStore)])
-      });
+      const currentLength = await redis.llen(key);
+      console.log('Current list length after store:', currentLength);
 
-      if (!storeResponse.ok) {
-        const errorText = await storeResponse.text();
-        console.error('Redis store error:', errorText);
-        throw new Error(`Redis store error: ${errorText}`);
-      }
+      // Trim to last 100 messages
+      await redis.ltrim(key, 0, 99);
 
-      // Trim to keep only last 100 messages
-      await fetch(`${UPSTASH_URL}/ltrim/${messageKey}/0/99`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify([])
-      });
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ success: true }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      );
     }
 
     if (action === 'retrieve') {
-      console.log('Retrieving messages for key:', messageKey);
+      console.log('Fetching messages for user:', userId);
       
-      const response = await fetch(`${UPSTASH_URL}/lrange/${messageKey}/0/99`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify([])
-      });
+      const listLength = await redis.llen(key);
+      console.log('Total messages in Redis:', listLength);
+      
+      const rawMessages = await redis.lrange(key, 0, 99);
+      console.log('Retrieved messages from Redis:', rawMessages.length);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Redis retrieve error:', errorText);
-        throw new Error(`Redis retrieve error: ${errorText}`);
-      }
-
-      const data = await response.json();
-      console.log('Raw Redis response:', data);
-
-      if (!Array.isArray(data.result)) {
-        console.error('Invalid Redis response format:', data);
-        throw new Error('Invalid Redis response format');
-      }
-
-      const messages = data.result.map((item: string) => {
+      // Parse messages and convert to frontend format
+      const messages = rawMessages.map(msg => {
         try {
-          const parsed = JSON.parse(item);
+          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
           if (!parsed.type || !parsed.content || !parsed.timestamp) {
             console.warn('Invalid message format:', parsed);
             return null;
@@ -105,31 +95,41 @@ serve(async (req) => {
             timestamp: parsed.timestamp
           };
         } catch (e) {
-          console.error('Failed to parse message:', item, e);
+          console.error('Failed to parse message:', msg, e);
           return null;
         }
       }).filter(Boolean);
 
-      console.log('Parsed messages:', messages);
+      console.log('Successfully parsed messages count:', messages.length);
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        messages: messages.reverse() 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          messages: messages.reverse() 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      );
     }
 
+    console.error('Invalid action requested:', action);
     throw new Error('Invalid action');
+
   } catch (error) {
     console.error('Error in messages function:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message,
-      details: 'An error occurred while processing your request',
-      timestamp: new Date().toISOString()
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack,
+        timestamp: new Date().toISOString()
+      }),
+      { 
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
 });
