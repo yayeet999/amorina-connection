@@ -1,9 +1,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
-import Vector from 'npm:@upstash/vector@1.0.2';
+import { createClient } from 'npm:@upstash/vector@1.0.2';
 
-const vector = new Vector({
+const vector = createClient({
   url: Deno.env.get('UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!,
 });
@@ -54,7 +54,7 @@ serve(async (req) => {
             timestamp: Date.now(),
             content: message,
           },
-          content: message,
+          vector: message,
         }]);
 
         console.log('Vector upsert result:', upsertResult);
