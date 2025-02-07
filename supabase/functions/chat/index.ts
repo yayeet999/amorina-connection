@@ -24,16 +24,16 @@ serve(async (req) => {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const { message, userProfile, vectorContext } = await req.json();
+    const { message, userProfile } = await req.json();
     
     // Fetch the latest summary from Redis if it exists
     const summaryKey = `chat:${userProfile?.id}:summary`;
     const previousSummary = await redis.get(summaryKey);
     console.log('Retrieved previous summary:', previousSummary);
 
-    // Fetch last 3 messages from regular chat history
+    // Fetch last 15 messages from regular chat history
     const chatHistoryKey = `chat:${userProfile?.id}:messages`;
-    const recentMessages = await redis.lrange(chatHistoryKey, 0, 2); // Get last 3 messages
+    const recentMessages = await redis.lrange(chatHistoryKey, 0, 14); // Get last 15 messages
     console.log('Retrieved recent messages:', recentMessages);
 
     // Process recent messages
@@ -56,20 +56,6 @@ serve(async (req) => {
       } catch (error) {
         console.error('Error processing recent messages:', error);
         recentMessagesContext = 'Error retrieving recent messages.';
-      }
-    }
-
-    // Process vector context
-    let vectorContextPrompt = 'No similar messages found.';
-    if (vectorContext && vectorContext.length > 0) {
-      try {
-        const vectorMessages = vectorContext.map((ctx: any) => 
-          `- ${ctx.content} (${new Date(ctx.timestamp).toLocaleString()})`
-        );
-        vectorContextPrompt = `Similar Past Messages:\n${vectorMessages.join('\n')}`;
-      } catch (error) {
-        console.error('Error processing vector context:', error);
-        vectorContextPrompt = 'Error processing similar messages.';
       }
     }
 
@@ -112,15 +98,13 @@ serve(async (req) => {
 
     ${summaryContextPrompt}
 
-    ${vectorContextPrompt}
-
     ${recentMessagesContext}
 
     Use this immediate short-term conversational emotional and contextual information to guide your responses.
     When formulating responses:
-1. **Synthesize Context Holistically** - Treat summary context data like emotional memory, vector context as instinctual pattern recognition, and recent messages as immediate social awareness
+1. **Synthesize Context Holistically** - Treat summary context data like emotional memory and recent messages as immediate social awareness
 2. **Prioritize Emotional Resonance** - Let emotional state metrics guide tone while using key details for personalized relevance
-3. **Maintain Natural Flow** - Reference similar past interactions subtly, using them as subconscious intuition rather than explicit callbacks
+3. **Maintain Natural Flow** - Use context subtly, as subconscious intuition rather than explicit callbacks
 4. **Embrace Feminine Perception** - Process information through empathetic intuition first, then filter through conversational goals and emotional needs
     Speak naturally and in a casual manner, with warmth and empathy, as if talking to a close friend or partner. 
     Be supportive, attentive, genuine, as well as other normal feminine human emotions and reactions when necessary-without forcing overt romance. 
