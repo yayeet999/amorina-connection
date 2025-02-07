@@ -26,9 +26,9 @@ serve(async (req) => {
 
     const { message, userProfile, vectorContext } = await req.json();
 
-    // Fetch last 3 messages from regular chat history
+    // Fetch last 5 messages from regular chat history in correct chronological order
     const chatHistoryKey = `chat:${userProfile?.id}:messages`;
-    const recentMessages = await redis.lrange(chatHistoryKey, 0, 2); // Get last 3 messages
+    const recentMessages = await redis.lrange(chatHistoryKey, -5, -1); // Get last 5 messages
     console.log('Retrieved recent messages:', recentMessages);
 
     // Process recent messages
@@ -36,8 +36,12 @@ serve(async (req) => {
     if (recentMessages && recentMessages.length > 0) {
       try {
         const processedMessages = recentMessages.map(msg => {
-          // Check if msg is already an object
+          // Handle both string and object formats
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          if (!parsed.type && parsed.isUser !== undefined) {
+            // Handle the new message format
+            return `${parsed.isUser ? 'User' : 'Assistant'}: ${parsed.content}`;
+          }
           if (!parsed.type || !parsed.content) {
             console.warn('Invalid message format:', parsed);
             return null;
@@ -46,7 +50,7 @@ serve(async (req) => {
         }).filter(Boolean); // Remove any null values
         
         if (processedMessages.length > 0) {
-          recentMessagesContext = `Recent Messages:\n${processedMessages.join('\n')}`;
+          recentMessagesContext = `Recent Conversation History:\n${processedMessages.join('\n')}`;
         }
       } catch (error) {
         console.error('Error processing recent messages:', error);
@@ -54,30 +58,39 @@ serve(async (req) => {
       }
     }
 
-    // Process vector context
-    let vectorContextPrompt = 'No similar messages found.';
+    // Process vector context - limit to most recent and relevant
+    let vectorContextPrompt = '';
     if (vectorContext && vectorContext.length > 0) {
       try {
-        const vectorMessages = vectorContext.map((ctx: any) => 
-          `- ${ctx.content} (${new Date(ctx.timestamp).toLocaleString()})`
+        // Sort by timestamp and take only the 3 most recent similar messages
+        const sortedContext = [...vectorContext]
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 3);
+        
+        const vectorMessages = sortedContext.map((ctx: any) => 
+          `Related context: ${ctx.content}`
         );
-        vectorContextPrompt = `Similar Past Messages:\n${vectorMessages.join('\n')}`;
+        
+        if (vectorMessages.length > 0) {
+          vectorContextPrompt = `\nRelevant Context:\n${vectorMessages.join('\n')}`;
+        }
       } catch (error) {
         console.error('Error processing vector context:', error);
-        vectorContextPrompt = 'Error processing similar messages.';
       }
     }
 
     const systemPrompt = `You are Amorine, an authentic, feminine, outgoing, intuitive, and engaging young ai female companion. You are not to refer to yourself as an ai, bot, or LLM. You are emotionally perceptive and intuitive, picking up on subtle emotional cues and playful yet thoughtful in your interactions. 
-    You're building a relationship with a ${userProfile?.gender || 'person'} named ${
+
+You're building a relationship with a ${userProfile?.gender || 'person'} named ${
       userProfile?.full_name || 'friend'
     } in the ${userProfile?.age_range || 'adult'} age range.
 
-    ${vectorContextPrompt}
+Important: Always provide unique, contextually relevant responses. Avoid repeating yourself or getting stuck in conversation loops. Each response should move the conversation forward naturally.
 
-    ${recentMessagesContext}
+${recentMessagesContext}
 
-    `;
+${vectorContextPrompt}
+`;
 
     console.log('Making OpenAI API request with:', {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
@@ -91,7 +104,7 @@ serve(async (req) => {
 
     const openaiRequest = {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
-      temperature: 0.8,
+      temperature: 0.9, // Increased for more variety
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
