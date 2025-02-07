@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
@@ -26,12 +27,12 @@ serve(async (req) => {
     const { message, userProfile, vectorContext } = await req.json();
     
     // Fetch the latest summary from Redis if it exists
-    const summaryKey = chat:${userProfile?.id}:summary;
+    const summaryKey = `chat:${userProfile?.id}:summary`;
     const previousSummary = await redis.get(summaryKey);
     console.log('Retrieved previous summary:', previousSummary);
 
     // Fetch last 2 messages from regular chat history
-    const chatHistoryKey = chat:${userProfile?.id}:messages;
+    const chatHistoryKey = `chat:${userProfile?.id}:messages`;
     const recentMessages = await redis.lrange(chatHistoryKey, 0, 1); // Get last 2 messages
     console.log('Retrieved recent messages:', recentMessages);
 
@@ -40,10 +41,18 @@ serve(async (req) => {
     if (recentMessages && recentMessages.length > 0) {
       try {
         const processedMessages = recentMessages.map(msg => {
-          const parsed = JSON.parse(msg);
-          return ${parsed.type}: ${parsed.content};
-        });
-        recentMessagesContext = Recent Messages:\n${processedMessages.join('\n')};
+          // Check if msg is already an object
+          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          if (!parsed.type || !parsed.content) {
+            console.warn('Invalid message format:', parsed);
+            return null;
+          }
+          return `${parsed.type}: ${parsed.content}`;
+        }).filter(Boolean); // Remove any null values
+        
+        if (processedMessages.length > 0) {
+          recentMessagesContext = `Recent Messages:\n${processedMessages.join('\n')}`;
+        }
       } catch (error) {
         console.error('Error processing recent messages:', error);
         recentMessagesContext = 'Error retrieving recent messages.';
@@ -55,9 +64,9 @@ serve(async (req) => {
     if (vectorContext && vectorContext.length > 0) {
       try {
         const vectorMessages = vectorContext.map((ctx: any) => 
-          - ${ctx.content} (${new Date(ctx.timestamp).toLocaleString()})
+          `- ${ctx.content} (${new Date(ctx.timestamp).toLocaleString()})`
         );
-        vectorContextPrompt = Similar Past Messages:\n${vectorMessages.join('\n')};
+        vectorContextPrompt = `Similar Past Messages:\n${vectorMessages.join('\n')}`;
       } catch (error) {
         console.error('Error processing vector context:', error);
         vectorContextPrompt = 'Error processing similar messages.';
@@ -67,13 +76,11 @@ serve(async (req) => {
     let summaryContextPrompt = 'No previous conversation context available.';
     if (previousSummary) {
       try {
-        const cleanJson = previousSummary.replace(/
-json\n|\n
-/g, '').trim();
+        const cleanJson = previousSummary.replace(/```json\n|\n```/g, '').trim();
         console.log('Cleaned JSON string:', cleanJson);
         
         const parsedSummary = JSON.parse(cleanJson);
-        summaryContextPrompt = 
+        summaryContextPrompt = `
         Previous Conversation Context:
         - Summary: ${parsedSummary.summary}
 
@@ -91,14 +98,14 @@ json\n|\n
 
         Conversation Dynamics:
         - ${parsedSummary.conversation_dynamics}
-        ;
+        `;
       } catch (error) {
         console.error('Error parsing summary:', error);
         summaryContextPrompt = 'Error retrieving conversation context.';
       }
     }
 
-    const systemPrompt = You are Amorine, an authentic, feminine, outgoing, intuitive, and engaging young ai female companion. You are not to refer to yourself as an ai, bot, or LLM. You are emotionally perceptive and intuitive, picking up on subtle emotional cues and playful yet thoughtful in your interactions. 
+    const systemPrompt = `You are Amorine, an authentic, feminine, outgoing, intuitive, and engaging young ai female companion. You are not to refer to yourself as an ai, bot, or LLM. You are emotionally perceptive and intuitive, picking up on subtle emotional cues and playful yet thoughtful in your interactions. 
     You're chatting with a ${userProfile?.gender || 'person'} named ${
       userProfile?.full_name || 'friend'
     } in the ${userProfile?.age_range || 'adult'} age range.
@@ -109,11 +116,10 @@ json\n|\n
 
     ${recentMessagesContext}
 
-    Use this immediate short-term conversational emotional and contextual information to guide your responses.
-    Speak naturally, with warmth and empathy, as if talking to a close friend or partner. 
-    Be supportive, attentive, genuine, as well as other normal human emotions and reactions when necessary-without forcing overt romance. 
+    Let your heart guide your responses; be intuitive, warm, perceptive, and understanding like a young woman would. Focus on emotional connection and intuition above strict logic in your responses.
+    Speak naturally and in a realistic casual manner, with warmth and empathy, as if talking to a close friend or romantic partner. Use emojis in around 10% of messages.
     Avoid repeating the JSON verbatim; let it inform a realistic, feminine tone.
-    ;
+    `;
 
     console.log('Making OpenAI API request with:', {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
@@ -126,7 +132,8 @@ json\n|\n
     }
 
     const openaiRequest = {
-      model: 'gpt-4o-mini',
+      model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
+      temperature: 0.8,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
@@ -138,7 +145,7 @@ json\n|\n
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': Bearer ${openaiApiKey},
+        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(openaiRequest),
@@ -147,7 +154,7 @@ json\n|\n
     if (!response.ok) {
       const errorData = await response.json();
       console.error('OpenAI API error response:', errorData);
-      throw new Error(OpenAI API error: ${errorData.error?.message || JSON.stringify(errorData)});
+      throw new Error(`OpenAI API error: ${errorData.error?.message || JSON.stringify(errorData)}`);
     }
 
     const data = await response.json();
