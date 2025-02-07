@@ -41,10 +41,18 @@ serve(async (req) => {
     if (recentMessages && recentMessages.length > 0) {
       try {
         const processedMessages = recentMessages.map(msg => {
-          const parsed = JSON.parse(msg);
+          // Check if msg is already an object
+          const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
+          if (!parsed.type || !parsed.content) {
+            console.warn('Invalid message format:', parsed);
+            return null;
+          }
           return `${parsed.type}: ${parsed.content}`;
-        });
-        recentMessagesContext = `Recent Messages:\n${processedMessages.join('\n')}`;
+        }).filter(Boolean); // Remove any null values
+        
+        if (processedMessages.length > 0) {
+          recentMessagesContext = `Recent Messages:\n${processedMessages.join('\n')}`;
+        }
       } catch (error) {
         console.error('Error processing recent messages:', error);
         recentMessagesContext = 'Error retrieving recent messages.';
@@ -186,4 +194,3 @@ serve(async (req) => {
     });
   }
 });
-
