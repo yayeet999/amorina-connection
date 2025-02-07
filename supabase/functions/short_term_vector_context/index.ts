@@ -12,6 +12,20 @@ const index = new Index({
   token: Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!,
 })
 
+// Simple function to generate basic vector embedding
+// This is a placeholder - in production you'd want to use a proper embedding model
+function generateBasicEmbedding(text: string): number[] {
+  // Create a basic 512-dimension vector (since that's common for embeddings)
+  const vector = new Array(512).fill(0);
+  
+  // Set some values based on the text to simulate an embedding
+  for (let i = 0; i < text.length && i < 512; i++) {
+    vector[i] = text.charCodeAt(i) / 255; // Normalize to 0-1 range
+  }
+  
+  return vector;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -36,10 +50,13 @@ serve(async (req) => {
       )
     }
 
-    // Upsert the message into the vector index
+    // Generate vector embedding for the message
+    const vector = generateBasicEmbedding(message);
+
+    // Upsert the message with its vector embedding into the vector index
     const upsertResult = await index.upsert({
       id: `${userId}-${Date.now()}`,
-      data: message,
+      vector: vector,
       metadata: {
         user_id: userId,
         content: message,
