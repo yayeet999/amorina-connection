@@ -36,10 +36,10 @@ serve(async (req) => {
       )
     }
 
-    // Upsert the message into the vector index
+    // Upsert the raw message - Upstash will handle the embedding
     const upsertResult = await index.upsert({
       id: `${userId}-${Date.now()}`,
-      data: message,
+      vector: message, // Pass the raw text - Upstash will convert it to a vector
       metadata: {
         user_id: userId,
         content: message,
