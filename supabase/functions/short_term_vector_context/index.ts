@@ -56,9 +56,21 @@ serve(async (req) => {
         });
 
         try {
+          // Create a simple dense vector from the text (this is a basic approach)
+          const encodedData = new TextEncoder().encode(message.trim());
+          const simpleVector = Array.from(encodedData).map(x => x / 255); // Normalize to [0,1]
+          
+          // Ensure vector has consistent length by padding or truncating
+          const vectorLength = 512; // Choose a fixed length
+          const paddedVector = [...simpleVector];
+          while (paddedVector.length < vectorLength) {
+            paddedVector.push(0);
+          }
+          const finalVector = paddedVector.slice(0, vectorLength);
+
           const upsertResult = await vector.upsert({
             id: `${userId}-${Date.now()}`,
-            data: message.trim(),
+            vector: finalVector,
             metadata: {
               user_id: userId,
               content: message,
@@ -69,10 +81,10 @@ serve(async (req) => {
           console.log('Vector upsert result:', upsertResult);
 
           const userMessages = await vector.query({
-            data: message,
+            vector: finalVector,
             topK: 20,
             includeMetadata: true,
-            includeVectors: true,
+            includeVectors: false,
             filter: {
               user_id: userId
             }
@@ -87,10 +99,10 @@ serve(async (req) => {
           }
 
           const similarMessages = await vector.query({
-            data: message,
+            vector: finalVector,
             topK: 3,
             includeMetadata: true,
-            includeVectors: true,
+            includeVectors: false,
             filter: {
               user_id: userId
             }
