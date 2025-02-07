@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
 const redis = new Redis({
   url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
@@ -40,20 +41,20 @@ serve(async (req) => {
       return `${parsed.type}: ${parsed.content}`;
     }).join('\n');
 
-    console.log('Calling Gemini API for summarization');
+    console.log('Calling OpenAI API for summarization');
     
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-8b:generateContent',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': Deno.env.get('GEMINI_API_KEY')!,
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `You are a specialized summarizer for a conversation between a user and their assistant AI girlfriend. You will receive the last 10 messages between the user and the assistant AI girlfriend. Please analyze them thoroughly and return a concise JSON object that captures:
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a specialized summarizer for a conversation between a user and their assistant AI girlfriend. You will receive the last 10 messages between the user and the assistant AI girlfriend. Please analyze them thoroughly and return a concise JSON object that captures:
 
 1. A 1-2 sentence summary of the main topic and tone.
 2. Emotional state analysis of the overall primary/secondary emotion, intensity (1–5), and a sentiment trend (rising, steady, or declining).
@@ -74,26 +75,26 @@ Output only valid JSON in the structure below, with no additional commentary:
   "user_needs": [],
   "key_details": [],
   "conversation_dynamics": ""
-}
-
-Here are the messages to analyze:
-${formattedMessages}`
-            }]
-          }]
-        })
-      }
-    );
+}`
+          },
+          {
+            role: 'user',
+            content: `Here are the messages to analyze:\n${formattedMessages}`
+          }
+        ]
+      })
+    });
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Gemini API error:', errorData);
+      console.error('OpenAI API error:', errorData);
       throw new Error('Failed to generate summary');
     }
 
     const data = await response.json();
-    console.log('Received Gemini response:', data);
+    console.log('Received OpenAI response:', data);
 
-    const summary = data.candidates[0].content.parts[0].text;
+    const summary = data.choices[0].message.content;
 
     // Store the summary in Redis
     const summaryKey = `chat:${userId}:summary`;
@@ -111,7 +112,7 @@ ${formattedMessages}`
     );
 
   } catch (error) {
-    console.error('Error in gemini_summarize_short:', error);
+    console.error('Error in summarize_short:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
