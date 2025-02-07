@@ -75,12 +75,16 @@ async function queryVectors(userId: string, vector?: number[]) {
   const queryVector = vector || new Array(384).fill(0);
   
   try {
+    // Construct the filter as a stringified JSON object
+    const filter = JSON.stringify({ user_id: userId });
+    console.log('Using filter:', filter);
+
     const results = await index.query({
       vector: queryVector,
       topK: 3,
       includeMetadata: true,
       includeVectors: false,
-      filter: { user_id: userId }
+      filter // Pass the stringified filter
     });
 
     console.log('Vector query results:', results);
