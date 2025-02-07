@@ -10,6 +10,7 @@ const corsHeaders = {
 const index = new Index({
   url: Deno.env.get('UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!,
+  indexName: 'amorine_short_context'
 })
 
 serve(async (req) => {
