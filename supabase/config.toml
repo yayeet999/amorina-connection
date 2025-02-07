@@ -1,1 +1,4 @@
+
 project_id = "iuixybzydxiwimwfhrgq"
+[functions.short_term_vector_context]
+verify_jwt = true
