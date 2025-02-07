@@ -65,7 +65,7 @@ serve(async (req) => {
             topK: 20,
             includeMetadata: true,
             includeVectors: false,
-            filter: JSON.stringify({ user_id: userId })
+            filter: `user_id = '${userId}'`
           });
 
           console.log('Retrieved user messages:', userMessages);
@@ -84,7 +84,7 @@ serve(async (req) => {
             topK: 3,
             includeMetadata: true,
             includeVectors: false,
-            filter: JSON.stringify({ user_id: userId })
+            filter: `user_id = '${userId}'`
           });
 
           console.log('Similar messages found:', similarMessages);
