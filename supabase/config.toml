@@ -2,3 +2,5 @@
 project_id = "iuixybzydxiwimwfhrgq"
 [functions.short_term_vector_context]
 verify_jwt = true
+[functions.redis_short_retrieval]
+verify_jwt = true

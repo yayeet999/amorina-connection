@@ -30,6 +30,29 @@ async function getEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+// Function to store context in Redis via redis_short_retrieval
+async function storeContextInRedis(userId: string, context: any) {
+  const response = await fetch(
+    'http://localhost:54321/functions/v1/redis_short_retrieval',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+      },
+      body: JSON.stringify({ userId, context }),
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.json()
+    console.error('Failed to store context in Redis:', error)
+    throw new Error('Failed to store context in Redis')
+  }
+
+  return await response.json()
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -77,8 +100,16 @@ serve(async (req) => {
 
       console.log('Context retrieved:', context);
 
+      // Store the context in Redis
+      try {
+        await storeContextInRedis(userId, context)
+        console.log('Successfully stored context in Redis')
+      } catch (error) {
+        console.error('Failed to store context in Redis:', error)
+      }
+
       return new Response(
-        JSON.stringify({ success: true, context }),
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     } else if (action === 'get_context') {
@@ -104,8 +135,16 @@ serve(async (req) => {
 
       console.log('Context retrieved:', context);
 
+      // Store the context in Redis
+      try {
+        await storeContextInRedis(userId, context)
+        console.log('Successfully stored context in Redis')
+      } catch (error) {
+        console.error('Failed to store context in Redis:', error)
+      }
+
       return new Response(
-        JSON.stringify({ success: true, context }),
+        JSON.stringify({ success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
