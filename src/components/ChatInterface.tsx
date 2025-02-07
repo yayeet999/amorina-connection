@@ -200,16 +200,6 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {vectorContext.length > 0 && (
-          <div className="bg-muted p-4 rounded-lg mb-4 text-sm">
-            <h3 className="font-semibold mb-2">Context from previous messages:</h3>
-            {vectorContext.map((ctx, index) => (
-              <div key={ctx.timestamp} className="mb-2 last:mb-0">
-                <p className="text-muted-foreground">{ctx.content}</p>
-              </div>
-            ))}
-          </div>
-        )}
         {messages.map((message, index) => (
           <ChatBubble
             key={message.timestamp + index}
