@@ -13,11 +13,17 @@ interface Message {
   timestamp: number;
 }
 
+interface VectorContext {
+  content: string;
+  timestamp: number;
+}
+
 export function ChatInterface() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [vectorContext, setVectorContext] = useState<VectorContext[]>([]);
 
   const { data: userProfile } = useQuery({
     queryKey: ['userProfile'],
@@ -64,6 +70,20 @@ export function ChatInterface() {
 
         console.log('Received messages:', data.messages);
         setMessages([...data.messages].reverse());
+
+        // Fetch initial vector context
+        const { data: contextData } = await supabase.functions.invoke('short_term_vector_context', {
+          body: {
+            action: 'get_context',
+            userId: user.id
+          },
+        });
+
+        if (contextData?.context) {
+          console.log('Initial vector context:', contextData.context);
+          setVectorContext(contextData.context);
+        }
+
       } catch (error) {
         console.error('Error fetching messages:', error);
         toast({
@@ -106,8 +126,8 @@ export function ChatInterface() {
 
       if (storeError) throw storeError;
 
-      // Store user message in vector context
-      const { error: vectorError } = await supabase.functions.invoke('short_term_vector_context', {
+      // Store user message in vector context and get similar messages
+      const { data: vectorData, error: vectorError } = await supabase.functions.invoke('short_term_vector_context', {
         body: {
           action: 'store',
           userId: user.id,
@@ -117,6 +137,9 @@ export function ChatInterface() {
 
       if (vectorError) {
         console.error('Error storing vector context:', vectorError);
+      } else if (vectorData?.context) {
+        console.log('Updated vector context:', vectorData.context);
+        setVectorContext(vectorData.context);
       }
 
       const { data: counterData, error: counterError } = await supabase.functions.invoke('redis_counter_short', {
@@ -131,19 +154,11 @@ export function ChatInterface() {
         });
       }
 
-      // Get vector context before making AI request
-      const { data: vectorContext } = await supabase.functions.invoke('short_term_vector_context', {
-        body: {
-          action: 'get_context',
-          userId: user.id
-        },
-      });
-
-      // Add vector context to the chat request if available
+      // Add vector context to the chat request
       const chatRequestBody = {
         message: content,
         userProfile,
-        vectorContext: vectorContext?.context
+        vectorContext: vectorContext
       };
 
       const response = await supabase.functions.invoke('chat', {
@@ -185,6 +200,16 @@ export function ChatInterface() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {vectorContext.length > 0 && (
+          <div className="bg-muted p-4 rounded-lg mb-4 text-sm">
+            <h3 className="font-semibold mb-2">Context from previous messages:</h3>
+            {vectorContext.map((ctx, index) => (
+              <div key={ctx.timestamp} className="mb-2 last:mb-0">
+                <p className="text-muted-foreground">{ctx.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
         {messages.map((message, index) => (
           <ChatBubble
             key={message.timestamp + index}

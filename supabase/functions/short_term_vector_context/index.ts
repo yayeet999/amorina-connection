@@ -51,7 +51,7 @@ serve(async (req) => {
       const vector = await getEmbedding(message);
 
       // Upsert following the exact template structure
-      const upsertResult = await index.upsert({
+      await index.upsert({
         id: `${userId}-${Date.now()}`,
         vector: vector,
         metadata: {
@@ -61,8 +61,6 @@ serve(async (req) => {
         }
       })
 
-      console.log('Vector upsert result:', upsertResult)
-
       // After successful upsert, query for similar vectors
       const similarResults = await index.query({
         vector: vector,
@@ -71,10 +69,16 @@ serve(async (req) => {
         filter: { user_id: userId }
       });
 
-      console.log('Similar vectors found:', similarResults);
+      // Extract just the content and timestamp from metadata
+      const context = similarResults.map(result => ({
+        content: result.metadata.content,
+        timestamp: result.metadata.timestamp
+      }));
+
+      console.log('Context retrieved:', context);
 
       return new Response(
-        JSON.stringify({ success: true, context: similarResults }),
+        JSON.stringify({ success: true, context }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     } else if (action === 'get_context') {
@@ -92,10 +96,16 @@ serve(async (req) => {
         limit: 3
       });
 
-      console.log('Recent context retrieved:', recentResults);
+      // Extract just the content and timestamp from metadata
+      const context = recentResults.map(result => ({
+        content: result.metadata.content,
+        timestamp: result.metadata.timestamp
+      }));
+
+      console.log('Context retrieved:', context);
 
       return new Response(
-        JSON.stringify({ success: true, context: recentResults }),
+        JSON.stringify({ success: true, context }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
