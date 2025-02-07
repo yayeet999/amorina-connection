@@ -16,13 +16,13 @@ const index = new Index({
 // Simple function to generate a basic vector from text
 // This is a placeholder - in production you'd want to use a proper embedding model
 function generateBasicVector(text: string): number[] {
-  // Create a fixed-length vector (1536 dimensions to match common embedding models)
-  const vector = new Array(1536).fill(0);
+  // Create a fixed-length vector (384 dimensions to match the Upstash index configuration)
+  const vector = new Array(384).fill(0);
   
   // Simple hash function to generate some values
   for (let i = 0; i < text.length; i++) {
     const value = text.charCodeAt(i) / 255; // Normalize to 0-1
-    vector[i % 1536] = value;
+    vector[i % 384] = value;
   }
   
   return vector;
