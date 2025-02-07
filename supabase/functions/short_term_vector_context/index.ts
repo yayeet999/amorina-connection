@@ -13,6 +13,21 @@ const index = new Index({
   indexName: 'amorine_short_context'
 })
 
+// Simple function to generate a basic vector from text
+// This is a placeholder - in production you'd want to use a proper embedding model
+function generateBasicVector(text: string): number[] {
+  // Create a fixed-length vector (1536 dimensions to match common embedding models)
+  const vector = new Array(1536).fill(0);
+  
+  // Simple hash function to generate some values
+  for (let i = 0; i < text.length; i++) {
+    const value = text.charCodeAt(i) / 255; // Normalize to 0-1
+    vector[i % 1536] = value;
+  }
+  
+  return vector;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -37,10 +52,13 @@ serve(async (req) => {
       )
     }
 
+    // Generate vector from the message
+    const vector = generateBasicVector(message);
+
     // Upsert following the exact template structure
     const upsertResult = await index.upsert({
       id: `${userId}-${Date.now()}`,
-      data: message,
+      vector: vector,
       metadata: {
         user_id: userId,
         content: message,
