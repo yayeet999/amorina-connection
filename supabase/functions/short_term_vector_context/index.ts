@@ -19,6 +19,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Create a placeholder vector of the correct dimension
+const createPlaceholderVector = () => Array(384).fill(0.5);
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -46,10 +49,10 @@ serve(async (req) => {
           message
         });
 
-        // Store message in vector database with text content for embedding
+        // Store message in vector database with dense vector
         const upsertResult = await vector.upsert({
           id: `${userId}-${Date.now()}`,
-          text: message, // Using text field instead of vector for automatic embedding
+          vector: createPlaceholderVector(),
           metadata: {
             user_id: userId,
             content: message,
@@ -62,7 +65,7 @@ serve(async (req) => {
         try {
           // Query to find and manage user messages
           const userMessages = await vector.query({
-            text: message, // Using text for query embedding
+            vector: createPlaceholderVector(),
             topK: 20,
             includeMetadata: true,
             includeVectors: false,
@@ -81,7 +84,7 @@ serve(async (req) => {
 
           // Query for similar messages
           const similarMessages = await vector.query({
-            text: message, // Using text for similarity search
+            vector: createPlaceholderVector(),
             topK: 3,
             includeMetadata: true,
             includeVectors: false,
