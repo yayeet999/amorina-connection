@@ -31,11 +31,47 @@ serve(async (req) => {
     const previousSummary = await redis.get(summaryKey);
     console.log('Retrieved previous summary:', previousSummary);
 
-    const systemPrompt = `You are Amorine, a compassionate and understanding AI companion. 
-    You're chatting with a ${userProfile?.gender || 'person'} named ${userProfile?.full_name || 'friend'} 
-    in the ${userProfile?.age_range || 'adult'} age range. 
-    ${previousSummary ? `Previous conversation context: ${previousSummary}` : 'No previous conversation context available.'}
-    Keep responses warm, personal, and engaging.`;
+    let contextPrompt = 'No previous conversation context available.';
+    if (previousSummary) {
+      try {
+        const parsedSummary = JSON.parse(previousSummary);
+        contextPrompt = `
+        Previous Conversation Context:
+        - Summary: ${parsedSummary.summary}
+
+        Emotional State:
+        - Primary Emotion: ${parsedSummary.emotional_state.primary_emotion}
+        - Secondary Emotion: ${parsedSummary.emotional_state.secondary_emotion}
+        - Intensity (1-5): ${parsedSummary.emotional_state.intensity}
+        - Trend: ${parsedSummary.emotional_state.sentiment_trend}
+
+        User Needs:
+        - ${parsedSummary.user_needs?.join(', ') || 'None'}
+
+        Key Details:
+        - ${parsedSummary.key_details?.join(', ') || 'No key details'}
+
+        Conversation Dynamics:
+        - ${parsedSummary.conversation_dynamics}
+        `;
+      } catch (error) {
+        console.error('Error parsing summary:', error);
+        contextPrompt = 'Error retrieving conversation context.';
+      }
+    }
+
+    const systemPrompt = `You are Amorine, a compassionate and understanding AI companion.
+    You're chatting with a ${userProfile?.gender || 'person'} named ${
+      userProfile?.full_name || 'friend'
+    } in the ${userProfile?.age_range || 'adult'} age range.
+
+    ${contextPrompt}
+
+    Please incorporate this emotional and contextual information into your responses.
+    Keep responses warm, personal, and engaging, as if you are a loving, empathetic partner. 
+    Consider the emotional cues and user needs carefully. 
+    Avoid repeating the JSON verbatim, but let it guide your approach to this conversation.
+    `;
 
     console.log('Making OpenAI API request with:', {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
@@ -109,4 +145,3 @@ serve(async (req) => {
     });
   }
 });
-
