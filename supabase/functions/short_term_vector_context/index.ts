@@ -1,9 +1,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
-import { createClient } from 'npm:@upstash/vector@1.0.2';
+import { Index } from 'npm:@upstash/vector@1.0.2';
 
-const vector = createClient({
+const vector = new Index({
   url: Deno.env.get('UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!,
 });
@@ -46,22 +46,24 @@ serve(async (req) => {
           vectorIndex
         });
 
-        // Store message in vector database
-        const upsertResult = await vector.upsert(vectorIndex, [{
+        // Store message in vector database with a simple vector representation
+        // For text, we'll use a basic encoding (this should be replaced with proper text embedding)
+        const upsertResult = await vector.upsert({
           id: `${userId}-${Date.now()}`,
+          vector: [0.5, 0.5], // Placeholder vector - should be replaced with proper text embedding
           metadata: {
             userId,
             timestamp: Date.now(),
             content: message,
-          },
-          vector: message,
-        }]);
+          }
+        });
 
         console.log('Vector upsert result:', upsertResult);
 
         // Get all messages for this user
-        const userMessages = await vector.query(vectorIndex, {
+        const userMessages = await vector.query({
           topK: 20,
+          vector: [0.5, 0.5], // Placeholder vector - should be replaced with proper text embedding
           filter: { userId },
           includeMetadata: true,
         });
@@ -74,15 +76,15 @@ serve(async (req) => {
           console.log('Deleting old messages:', messagesToDelete);
           await Promise.all(
             messagesToDelete.map(msg => 
-              vector.delete(vectorIndex, msg.id)
+              vector.delete(msg.id)
             )
           );
         }
 
         // Perform similarity search for top 3 relevant messages
-        const similarMessages = await vector.query(vectorIndex, {
+        const similarMessages = await vector.query({
           topK: 3,
-          vector: message,
+          vector: [0.5, 0.5], // Placeholder vector - should be replaced with proper text embedding
           filter: { userId },
           includeMetadata: true,
         });
