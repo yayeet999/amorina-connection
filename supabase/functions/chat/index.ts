@@ -31,9 +31,9 @@ serve(async (req) => {
     const previousSummary = await redis.get(summaryKey);
     console.log('Retrieved previous summary:', previousSummary);
 
-    // Fetch last 2 messages from regular chat history
+    // Fetch last 3 messages from regular chat history
     const chatHistoryKey = `chat:${userProfile?.id}:messages`;
-    const recentMessages = await redis.lrange(chatHistoryKey, 0, 1); // Get last 2 messages
+    const recentMessages = await redis.lrange(chatHistoryKey, 0, 2); // Get last 3 messages
     console.log('Retrieved recent messages:', recentMessages);
 
     // Process recent messages
