@@ -40,8 +40,14 @@ serve(async (req) => {
           throw new Error('Message is required for store action');
         }
 
+        console.log('Attempting to store message in vector database:', {
+          userId,
+          message,
+          vectorIndex
+        });
+
         // Store message in vector database
-        await vector.upsert(vectorIndex, [{
+        const upsertResult = await vector.upsert(vectorIndex, [{
           id: `${userId}-${Date.now()}`,
           metadata: {
             userId,
@@ -51,6 +57,8 @@ serve(async (req) => {
           content: message,
         }]);
 
+        console.log('Vector upsert result:', upsertResult);
+
         // Get all messages for this user
         const userMessages = await vector.query(vectorIndex, {
           topK: 20,
@@ -58,9 +66,12 @@ serve(async (req) => {
           includeMetadata: true,
         });
 
+        console.log('Retrieved user messages:', userMessages);
+
         // If more than 20 messages, delete the oldest ones
         if (userMessages.length > 20) {
           const messagesToDelete = userMessages.slice(20);
+          console.log('Deleting old messages:', messagesToDelete);
           await Promise.all(
             messagesToDelete.map(msg => 
               vector.delete(vectorIndex, msg.id)
@@ -76,9 +87,13 @@ serve(async (req) => {
           includeMetadata: true,
         });
 
+        console.log('Similar messages found:', similarMessages);
+
         // Store top 3 messages in Redis
         const contextMessages = similarMessages.map(msg => msg.metadata.content);
         await redis.set(redisKey, JSON.stringify(contextMessages));
+
+        console.log('Stored context in Redis:', contextMessages);
 
         return new Response(
           JSON.stringify({ 
@@ -95,6 +110,8 @@ serve(async (req) => {
         // Retrieve context from Redis
         const cachedContext = await redis.get(redisKey);
         const context = cachedContext ? JSON.parse(cachedContext as string) : [];
+
+        console.log('Retrieved context from Redis:', context);
 
         return new Response(
           JSON.stringify({ 
