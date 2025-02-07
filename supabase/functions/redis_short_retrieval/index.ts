@@ -20,10 +20,23 @@ serve(async (req) => {
 
   try {
     const { userId, context } = await req.json()
+    console.log('Received request with userId:', userId);
+    console.log('Context data:', context);
 
     if (!userId) {
       throw new Error('userId is required')
     }
+
+    if (!context || !Array.isArray(context)) {
+      throw new Error('context must be an array')
+    }
+
+    // Validate context structure
+    context.forEach((item, index) => {
+      if (!item.content || !item.timestamp) {
+        throw new Error(`Invalid context item at index ${index}: must have content and timestamp`)
+      }
+    });
 
     // Test Redis connection
     try {
@@ -41,16 +54,23 @@ serve(async (req) => {
 
     // Store the context as a JSON string
     await redis.set(key, JSON.stringify(context))
+    console.log('Successfully stored context in Redis');
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ 
+        success: true,
+        message: 'Context stored successfully'
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('Error in redis_short_retrieval:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

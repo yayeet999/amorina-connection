@@ -32,25 +32,35 @@ async function getEmbedding(text: string): Promise<number[]> {
 
 // Function to store context in Redis via redis_short_retrieval
 async function storeContextInRedis(userId: string, context: any) {
-  const response = await fetch(
-    'http://localhost:54321/functions/v1/redis_short_retrieval',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-      },
-      body: JSON.stringify({ userId, context }),
+  console.log('Attempting to store context in Redis for user:', userId);
+  console.log('Context data:', context);
+
+  try {
+    const response = await fetch(
+      `${Deno.env.get('SUPABASE_URL')}/functions/v1/redis_short_retrieval`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+        },
+        body: JSON.stringify({ userId, context }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Redis storage failed:', response.status, errorData);
+      throw new Error(`Failed to store context in Redis: ${response.status}`);
     }
-  )
 
-  if (!response.ok) {
-    const error = await response.json()
-    console.error('Failed to store context in Redis:', error)
-    throw new Error('Failed to store context in Redis')
+    const data = await response.json();
+    console.log('Successfully stored context in Redis:', data);
+    return data;
+  } catch (error) {
+    console.error('Error storing context in Redis:', error);
+    throw error;
   }
-
-  return await response.json()
 }
 
 serve(async (req) => {
@@ -70,8 +80,11 @@ serve(async (req) => {
         )
       }
 
+      console.log('Processing store action for user:', userId);
+
       // Generate embedding from the message using OpenAI
       const vector = await getEmbedding(message);
+      console.log('Generated embedding vector');
 
       // Upsert following the exact template structure
       await index.upsert({
@@ -82,9 +95,11 @@ serve(async (req) => {
           content: message,
           timestamp: Date.now()
         }
-      })
+      });
 
-      // After successful upsert, query for similar vectors
+      console.log('Successfully upserted vector');
+
+      // Query for similar vectors
       const similarResults = await index.query({
         vector: vector,
         topK: 3,
@@ -92,26 +107,30 @@ serve(async (req) => {
         filter: { user_id: userId }
       });
 
+      console.log('Retrieved similar vectors:', similarResults);
+
       // Extract just the content and timestamp from metadata
       const context = similarResults.map(result => ({
         content: result.metadata.content,
         timestamp: result.metadata.timestamp
       }));
 
-      console.log('Context retrieved:', context);
+      console.log('Prepared context for Redis:', context);
 
       // Store the context in Redis
       try {
-        await storeContextInRedis(userId, context)
-        console.log('Successfully stored context in Redis')
+        await storeContextInRedis(userId, context);
+        console.log('Successfully stored context in Redis');
       } catch (error) {
-        console.error('Failed to store context in Redis:', error)
+        console.error('Failed to store context in Redis:', error);
+        // Continue execution even if Redis storage fails
       }
 
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ success: true, context }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+
     } else if (action === 'get_context') {
       if (!userId) {
         return new Response(
@@ -120,14 +139,20 @@ serve(async (req) => {
         )
       }
 
-      // Query for the most recent context for this user by first getting a vector
-      // to use as a reference point
+      console.log('Processing get_context action for user:', userId);
+
+      // Create a default zero vector for querying
+      const defaultVector = new Array(384).fill(0);
+
+      // Query for the most recent context
       const results = await index.query({
-        vector: new Array(384).fill(0), // Default vector of zeros
+        vector: defaultVector,
         topK: 3,
         includeMetadata: true,
         filter: { user_id: userId }
       });
+
+      console.log('Retrieved vectors for context:', results);
 
       // Extract just the content and timestamp from metadata
       const context = results.map(result => ({
@@ -135,18 +160,19 @@ serve(async (req) => {
         timestamp: result.metadata.timestamp
       }));
 
-      console.log('Context retrieved:', context);
+      console.log('Prepared context for Redis:', context);
 
       // Store the context in Redis
       try {
-        await storeContextInRedis(userId, context)
-        console.log('Successfully stored context in Redis')
+        await storeContextInRedis(userId, context);
+        console.log('Successfully stored context in Redis');
       } catch (error) {
-        console.error('Failed to store context in Redis:', error)
+        console.error('Failed to store context in Redis:', error);
+        // Continue execution even if Redis storage fails
       }
 
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ success: true, context }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -157,9 +183,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in short_term_vector_context:', error)
+    console.error('Error in short_term_vector_context:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
