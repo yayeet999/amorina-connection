@@ -31,6 +31,38 @@ async function getEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+async function maintainMessageWindow(userId: string) {
+  console.log('Maintaining message window for user:', userId);
+  
+  try {
+    // Get all messages for this user
+    const allMessages = await index.query({
+      vector: new Array(384).fill(0), // Dummy vector for filtering
+      topK: 100, // Get all messages to sort by timestamp
+      includeMetadata: true,
+      includeVectors: false,
+      filter: `user_id = '${userId}'`
+    });
+
+    // Sort messages by timestamp (newest first)
+    const sortedMessages = allMessages.sort((a, b) => 
+      (b.metadata.timestamp || 0) - (a.metadata.timestamp || 0)
+    );
+
+    // If we have more than 20 messages, delete the oldest ones
+    if (sortedMessages.length > 20) {
+      const messagesToDelete = sortedMessages.slice(20);
+      console.log(`Deleting ${messagesToDelete.length} old messages`);
+      
+      for (const message of messagesToDelete) {
+        await index.delete(message.id);
+      }
+    }
+  } catch (error) {
+    console.error('Error maintaining message window:', error);
+  }
+}
+
 async function storeContextInRedis(userId: string, context: any) {
   console.log('Attempting to store context in Redis for user:', userId);
   console.log('Context data to store:', JSON.stringify(context));
@@ -75,7 +107,6 @@ async function queryVectors(userId: string, vector?: number[]) {
   const queryVector = vector || new Array(384).fill(0);
   
   try {
-    // Format the filter as a string expression
     const filter = `user_id = '${userId}'`;
     console.log('Using filter:', filter);
 
@@ -129,6 +160,10 @@ serve(async (req) => {
 
       console.log('Successfully upserted vector');
 
+      // Maintain the 20-message window after adding new message
+      await maintainMessageWindow(userId);
+      console.log('Maintained message window');
+
       const similarResults = await queryVectors(userId, vector);
       console.log('Retrieved similar vectors:', similarResults);
 
@@ -144,7 +179,6 @@ serve(async (req) => {
         console.log('Successfully stored context in Redis');
       } catch (error) {
         console.error('Failed to store context in Redis:', error);
-        // Continue execution even if Redis storage fails
       }
 
       return new Response(
@@ -170,7 +204,6 @@ serve(async (req) => {
         console.log('Successfully stored context in Redis');
       } catch (error) {
         console.error('Failed to store context in Redis:', error);
-        // Continue execution even if Redis storage fails
       }
 
       return new Response(
