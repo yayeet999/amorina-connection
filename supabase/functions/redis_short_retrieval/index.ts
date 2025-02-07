@@ -38,24 +38,31 @@ serve(async (req) => {
       if (typeof item.content !== 'string') {
         throw new Error(`Invalid content at index ${index}: must be a string`);
       }
-      if (typeof item.timestamp !== 'number') {
-        throw new Error(`Invalid timestamp at index ${index}: must be a number`);
+      if (typeof item.timestamp !== 'number' || isNaN(item.timestamp)) {
+        throw new Error(`Invalid timestamp at index ${index}: must be a valid number`);
       }
     });
 
     try {
-      await redis.ping();
-      console.log('Redis connection successful');
+      const pingResult = await redis.ping();
+      console.log('Redis connection test result:', pingResult);
+      if (pingResult !== 'PONG') {
+        throw new Error('Redis connection test failed');
+      }
     } catch (redisError) {
       console.error('Redis connection failed:', redisError);
       throw new Error('Redis connection failed');
     }
 
     const key = `user:${userId}:context`;
+    const contextString = JSON.stringify(context);
     console.log('Storing context for user:', userId);
-    console.log('Context to store:', JSON.stringify(context));
+    console.log('Context to store:', contextString);
 
-    await redis.set(key, JSON.stringify(context));
+    const setResult = await redis.set(key, contextString);
+    if (setResult !== 'OK') {
+      throw new Error('Failed to store context in Redis');
+    }
     console.log('Successfully stored context in Redis');
 
     return new Response(

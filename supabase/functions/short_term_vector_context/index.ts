@@ -19,6 +19,7 @@ const openai = new OpenAI({
 })
 
 async function getEmbedding(text: string): Promise<number[]> {
+  console.log('Generating embedding for text:', text);
   const response = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: text,
@@ -26,6 +27,7 @@ async function getEmbedding(text: string): Promise<number[]> {
     dimensions: 384
   });
   
+  console.log('Successfully generated embedding');
   return response.data[0].embedding;
 }
 
@@ -67,6 +69,28 @@ async function storeContextInRedis(userId: string, context: any) {
   }
 }
 
+async function queryVectors(userId: string, vector?: number[]) {
+  console.log('Querying vectors for user:', userId);
+  
+  const queryVector = vector || new Array(384).fill(0);
+  
+  try {
+    const results = await index.query({
+      vector: queryVector,
+      topK: 3,
+      includeMetadata: true,
+      includeVectors: false,
+      filter: { user_id: userId }
+    });
+
+    console.log('Vector query results:', results);
+    return results;
+  } catch (error) {
+    console.error('Error querying vectors:', error);
+    throw error;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -76,12 +100,13 @@ serve(async (req) => {
     const { action, userId, message } = await req.json();
     console.log('Received request:', { action, userId });
 
+    if (!userId) {
+      throw new Error('userId is required');
+    }
+
     if (action === 'store') {
-      if (!userId || !message) {
-        return new Response(
-          JSON.stringify({ error: 'userId and message are required' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
+      if (!message) {
+        throw new Error('message is required for store action');
       }
 
       console.log('Processing store action for user:', userId);
@@ -100,13 +125,7 @@ serve(async (req) => {
 
       console.log('Successfully upserted vector');
 
-      const similarResults = await index.query({
-        vector: vector,
-        topK: 3,
-        includeMetadata: true,
-        filter: { user_id: userId }
-      });
-
+      const similarResults = await queryVectors(userId, vector);
       console.log('Retrieved similar vectors:', similarResults);
 
       const context = similarResults.map(result => ({
@@ -121,6 +140,7 @@ serve(async (req) => {
         console.log('Successfully stored context in Redis');
       } catch (error) {
         console.error('Failed to store context in Redis:', error);
+        // Continue execution even if Redis storage fails
       }
 
       return new Response(
@@ -129,23 +149,9 @@ serve(async (req) => {
       );
 
     } else if (action === 'get_context') {
-      if (!userId) {
-        return new Response(
-          JSON.stringify({ error: 'userId is required' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
-      }
-
       console.log('Processing get_context action for user:', userId);
-      const defaultVector = new Array(384).fill(0);
-
-      const results = await index.query({
-        vector: defaultVector,
-        topK: 3,
-        includeMetadata: true,
-        filter: { user_id: userId }
-      });
-
+      
+      const results = await queryVectors(userId);
       console.log('Retrieved vectors for context:', results);
 
       const context = results.map(result => ({
@@ -160,6 +166,7 @@ serve(async (req) => {
         console.log('Successfully stored context in Redis');
       } catch (error) {
         console.error('Failed to store context in Redis:', error);
+        // Continue execution even if Redis storage fails
       }
 
       return new Response(
