@@ -34,7 +34,11 @@ serve(async (req) => {
     let contextPrompt = 'No previous conversation context available.';
     if (previousSummary) {
       try {
-        const parsedSummary = JSON.parse(previousSummary);
+        // Clean up the JSON string by removing markdown code block syntax if present
+        const cleanJson = previousSummary.replace(/```json\n|\n```/g, '').trim();
+        console.log('Cleaned JSON string:', cleanJson);
+        
+        const parsedSummary = JSON.parse(cleanJson);
         contextPrompt = `
         Previous Conversation Context:
         - Summary: ${parsedSummary.summary}
