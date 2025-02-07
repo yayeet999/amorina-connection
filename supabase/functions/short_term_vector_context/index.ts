@@ -120,15 +120,17 @@ serve(async (req) => {
         )
       }
 
-      // Query for the most recent context for this user
-      const recentResults = await index.fetch({
-        filter: { user_id: userId },
+      // Query for the most recent context for this user by first getting a vector
+      // to use as a reference point
+      const results = await index.query({
+        vector: new Array(384).fill(0), // Default vector of zeros
+        topK: 3,
         includeMetadata: true,
-        limit: 3
+        filter: { user_id: userId }
       });
 
       // Extract just the content and timestamp from metadata
-      const context = recentResults.map(result => ({
+      const context = results.map(result => ({
         content: result.metadata.content,
         timestamp: result.metadata.timestamp
       }));
