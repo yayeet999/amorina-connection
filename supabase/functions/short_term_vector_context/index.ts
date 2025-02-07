@@ -39,40 +39,70 @@ serve(async (req) => {
   try {
     const { action, userId, message } = await req.json()
 
-    // We only handle store action now
-    if (action !== 'store') {
-      return new Response(
-        JSON.stringify({ error: 'Only store action is supported' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    if (!userId || !message) {
-      return new Response(
-        JSON.stringify({ error: 'userId and message are required' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    // Generate embedding from the message using OpenAI
-    const vector = await getEmbedding(message);
-
-    // Upsert following the exact template structure
-    const upsertResult = await index.upsert({
-      id: `${userId}-${Date.now()}`,
-      vector: vector,
-      metadata: {
-        user_id: userId,
-        content: message,
-        timestamp: Date.now()
+    if (action === 'store') {
+      if (!userId || !message) {
+        return new Response(
+          JSON.stringify({ error: 'userId and message are required' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
       }
-    })
 
-    console.log('Vector upsert result:', upsertResult)
+      // Generate embedding from the message using OpenAI
+      const vector = await getEmbedding(message);
+
+      // Upsert following the exact template structure
+      const upsertResult = await index.upsert({
+        id: `${userId}-${Date.now()}`,
+        vector: vector,
+        metadata: {
+          user_id: userId,
+          content: message,
+          timestamp: Date.now()
+        }
+      })
+
+      console.log('Vector upsert result:', upsertResult)
+
+      // After successful upsert, query for similar vectors
+      const similarResults = await index.query({
+        vector: vector,
+        topK: 3,
+        includeMetadata: true,
+        filter: { user_id: userId }
+      });
+
+      console.log('Similar vectors found:', similarResults);
+
+      return new Response(
+        JSON.stringify({ success: true, context: similarResults }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } else if (action === 'get_context') {
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: 'userId is required' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
+      }
+
+      // Query for the most recent context for this user
+      const recentResults = await index.fetch({
+        filter: { user_id: userId },
+        includeMetadata: true,
+        limit: 3
+      });
+
+      console.log('Recent context retrieved:', recentResults);
+
+      return new Response(
+        JSON.stringify({ success: true, context: recentResults }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: 'Invalid action' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
     )
 
   } catch (error) {
