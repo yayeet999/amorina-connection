@@ -45,7 +45,7 @@ serve(async (req) => {
           message
         });
 
-        // Store message in vector database with a dense vector representation
+        // Store message in vector database
         const upsertResult = await vector.upsert({
           id: `${userId}-${Date.now()}`,
           vector: Array(384).fill(0.5),
@@ -59,42 +59,40 @@ serve(async (req) => {
         console.log('Vector upsert result:', upsertResult);
 
         try {
-          // Get all messages for this user
+          // Query to find and manage user messages
           const userMessages = await vector.query({
-            topK: 20,
             vector: Array(384).fill(0.5),
-            filter: { user_id: userId },
+            topK: 20,
             includeMetadata: true,
+            includeVectors: false,
+            filter: JSON.stringify({ user_id: userId })
           });
 
           console.log('Retrieved user messages:', userMessages);
 
-          // If more than 20 messages, delete the oldest ones
           if (userMessages.matches && userMessages.matches.length > 20) {
             const messagesToDelete = userMessages.matches.slice(20);
             console.log('Deleting old messages:', messagesToDelete);
             await Promise.all(
-              messagesToDelete.map(msg => 
-                vector.delete(msg.id)
-              )
+              messagesToDelete.map(msg => vector.delete(msg.id))
             );
           }
 
-          // Perform similarity search for top 3 relevant messages
+          // Query for similar messages
           const similarMessages = await vector.query({
-            topK: 3,
             vector: Array(384).fill(0.5),
-            filter: { user_id: userId },
+            topK: 3,
             includeMetadata: true,
+            includeVectors: false,
+            filter: JSON.stringify({ user_id: userId })
           });
 
           console.log('Similar messages found:', similarMessages);
 
           if (similarMessages.matches) {
-            // Store top 3 messages in Redis
             const contextMessages = similarMessages.matches
               .map(msg => msg.metadata?.content)
-              .filter(content => content != null);
+              .filter(Boolean);
 
             console.log('Storing context in Redis:', contextMessages);
             await redis.set(redisKey, JSON.stringify(contextMessages));
@@ -102,7 +100,7 @@ serve(async (req) => {
 
         } catch (queryError) {
           console.error('Error during vector query operations:', queryError);
-          // Continue execution even if query fails - don't throw
+          // Continue execution even if query fails
         }
 
         return new Response(
