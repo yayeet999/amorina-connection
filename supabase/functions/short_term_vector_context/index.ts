@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.24.0/mod.ts';
 import { Index } from '@upstash/vector@1.0.3';
@@ -15,7 +16,6 @@ if (!vectorUrl || !vectorToken || !redisUrl || !redisToken) {
 const vector = new Index({
   url: vectorUrl,
   token: vectorToken,
-  indexName: 'amorine_short_context' // Match your index name exactly
 });
 
 const redis = new Redis({
@@ -59,8 +59,6 @@ serve(async (req) => {
           const upsertResult = await vector.upsert({
             id: `${userId}-${Date.now()}`,
             data: message.trim(),
-            vector: [], // Will be auto-populated by dense model
-            sparseVector: [], // Will be auto-populated by BM25
             metadata: {
               user_id: userId,
               content: message,
@@ -74,7 +72,7 @@ serve(async (req) => {
             data: message,
             topK: 20,
             includeMetadata: true,
-            includeVectors: false,
+            includeVectors: true,
             filter: {
               user_id: userId
             }
@@ -92,7 +90,7 @@ serve(async (req) => {
             data: message,
             topK: 3,
             includeMetadata: true,
-            includeVectors: false,
+            includeVectors: true,
             filter: {
               user_id: userId
             }
