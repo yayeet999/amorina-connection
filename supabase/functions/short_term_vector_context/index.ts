@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.24.0/mod.ts';
-import { Index } from '@upstash/vector@1.0.3';
+import { Index } from 'https://esm.sh/@upstash/vector@1.0.3';
 
 // Validate environment variables
 const vectorUrl = Deno.env.get('UPSTASH_VECTOR_REST_URL');
