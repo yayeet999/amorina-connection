@@ -50,7 +50,7 @@ serve(async (req) => {
           id: `${userId}-${Date.now()}`,
           vector: Array(384).fill(0.5),
           metadata: {
-            userId: userId,
+            user_id: userId,
             content: message,
             timestamp: Date.now(),
           }
@@ -58,47 +58,57 @@ serve(async (req) => {
 
         console.log('Vector upsert result:', upsertResult);
 
-        // Get all messages for this user
-        const userMessages = await vector.query({
-          topK: 20,
-          vector: Array(384).fill(0.5),
-          filter: { userId: userId },
-          includeMetadata: true,
-        });
+        try {
+          // Get all messages for this user
+          const userMessages = await vector.query({
+            topK: 20,
+            vector: Array(384).fill(0.5),
+            filter: { user_id: userId },
+            includeMetadata: true,
+          });
 
-        console.log('Retrieved user messages:', userMessages);
+          console.log('Retrieved user messages:', userMessages);
 
-        // If more than 20 messages, delete the oldest ones
-        if (userMessages.length > 20) {
-          const messagesToDelete = userMessages.slice(20);
-          console.log('Deleting old messages:', messagesToDelete);
-          await Promise.all(
-            messagesToDelete.map(msg => 
-              vector.delete(msg.id)
-            )
-          );
+          // If more than 20 messages, delete the oldest ones
+          if (userMessages.matches && userMessages.matches.length > 20) {
+            const messagesToDelete = userMessages.matches.slice(20);
+            console.log('Deleting old messages:', messagesToDelete);
+            await Promise.all(
+              messagesToDelete.map(msg => 
+                vector.delete(msg.id)
+              )
+            );
+          }
+
+          // Perform similarity search for top 3 relevant messages
+          const similarMessages = await vector.query({
+            topK: 3,
+            vector: Array(384).fill(0.5),
+            filter: { user_id: userId },
+            includeMetadata: true,
+          });
+
+          console.log('Similar messages found:', similarMessages);
+
+          if (similarMessages.matches) {
+            // Store top 3 messages in Redis
+            const contextMessages = similarMessages.matches
+              .map(msg => msg.metadata?.content)
+              .filter(content => content != null);
+
+            console.log('Storing context in Redis:', contextMessages);
+            await redis.set(redisKey, JSON.stringify(contextMessages));
+          }
+
+        } catch (queryError) {
+          console.error('Error during vector query operations:', queryError);
+          // Continue execution even if query fails - don't throw
         }
-
-        // Perform similarity search for top 3 relevant messages
-        const similarMessages = await vector.query({
-          topK: 3,
-          vector: Array(384).fill(0.5),
-          filter: { userId: userId },
-          includeMetadata: true,
-        });
-
-        console.log('Similar messages found:', similarMessages);
-
-        // Store top 3 messages in Redis
-        const contextMessages = similarMessages.map(msg => msg.metadata.content);
-        await redis.set(redisKey, JSON.stringify(contextMessages));
-
-        console.log('Stored context in Redis:', contextMessages);
 
         return new Response(
           JSON.stringify({ 
-            success: true, 
-            context: contextMessages 
+            success: true,
+            message: 'Message stored successfully'
           }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
