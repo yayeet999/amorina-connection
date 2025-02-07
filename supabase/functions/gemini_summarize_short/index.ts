@@ -53,7 +53,31 @@ serve(async (req) => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `Please provide a brief summary of this conversation:\n${formattedMessages}\n\nSummary:`
+              text: `You are a specialized summarizer for a conversation between a user and their assistant AI girlfriend. You will receive the last 10 messages between the user and the assistant AI girlfriend. Please analyze them thoroughly and return a concise JSON object that captures:
+
+1. A 1-2 sentence summary of the main topic and tone.
+2. Emotional state analysis of the overall primary/secondary emotion, intensity (1–5), and a sentiment trend (rising, steady, or declining).
+3. User needs (emotional or practical such as advice, attention, etc)
+4. Key details or facts mentioned.
+5. Conversation dynamics (initiator, tone, relationship context, vulnerability, etc).
+
+Output only valid JSON in the structure below, with no additional commentary:
+
+{
+  "summary": "",
+  "emotional_state": {
+    "primary_emotion": "",
+    "secondary_emotion": "",
+    "intensity": "",
+    "sentiment_trend": ""
+  },
+  "user_needs": [],
+  "key_details": [],
+  "conversation_dynamics": ""
+}
+
+Here are the messages to analyze:
+${formattedMessages}`
             }]
           }]
         })
