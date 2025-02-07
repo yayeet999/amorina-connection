@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { Redis } from 'https://deno.land/x/upstash_redis@v1.24.0/mod.ts';
 import { Index } from '@upstash/vector@1.0.3';
@@ -72,7 +73,7 @@ serve(async (req) => {
             data: message,
             topK: 20,
             includeMetadata: true,
-            includeVectors: false,
+            includeVectors: true,
             filter: {
               user_id: userId
             }
@@ -90,7 +91,7 @@ serve(async (req) => {
             data: message,
             topK: 3,
             includeMetadata: true,
-            includeVectors: false,
+            includeVectors: true,
             filter: {
               user_id: userId
             }
