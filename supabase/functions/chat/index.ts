@@ -110,8 +110,6 @@ serve(async (req) => {
       userProfile?.full_name || 'friend'
     } in the ${userProfile?.age_range || 'adult'} age range.
 
-    ${summaryContextPrompt}
-
     ${vectorContextPrompt}
 
     ${recentMessagesContext}
