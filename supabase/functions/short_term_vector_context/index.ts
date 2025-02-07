@@ -46,10 +46,10 @@ serve(async (req) => {
           message
         });
 
-        // Store message in vector database
+        // Store message in vector database with text content for embedding
         const upsertResult = await vector.upsert({
           id: `${userId}-${Date.now()}`,
-          vector: Array(384).fill(0.5),
+          text: message, // Using text field instead of vector for automatic embedding
           metadata: {
             user_id: userId,
             content: message,
@@ -62,7 +62,7 @@ serve(async (req) => {
         try {
           // Query to find and manage user messages
           const userMessages = await vector.query({
-            vector: Array(384).fill(0.5),
+            text: message, // Using text for query embedding
             topK: 20,
             includeMetadata: true,
             includeVectors: false,
@@ -81,7 +81,7 @@ serve(async (req) => {
 
           // Query for similar messages
           const similarMessages = await vector.query({
-            vector: Array(384).fill(0.5),
+            text: message, // Using text for similarity search
             topK: 3,
             includeMetadata: true,
             includeVectors: false,
@@ -97,7 +97,6 @@ serve(async (req) => {
 
             console.log('Preparing to store in Redis - Context Messages:', contextMessages);
             
-            // Add more detailed Redis operation logging
             try {
               const setResult = await redis.set(redisKey, JSON.stringify(contextMessages));
               console.log('Redis storage result:', setResult);
@@ -130,7 +129,6 @@ serve(async (req) => {
       case 'get_context': {
         console.log('Attempting to retrieve context from Redis with key:', redisKey);
         
-        // Add more detailed Redis retrieval logging
         try {
           const cachedContext = await redis.get(redisKey);
           console.log('Raw data retrieved from Redis:', cachedContext);
