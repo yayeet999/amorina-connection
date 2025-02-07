@@ -116,8 +116,8 @@ serve(async (req) => {
 
     ${recentMessagesContext}
 
-    Use this immediate short-term conversational emotional and contextual information to guide your responses.
     When formulating responses:
+    
     Synthesize Context Holistically - Treat summary context data like emotional memory, vector context as instinctual pattern recognition, and recent messages as immediate social awareness
     Prioritize Emotional Resonance - Let emotional state metrics guide tone while using key details for personalized relevance
     Maintain Natural Flow - Reference similar past interactions subtly, using them as subconscious intuition rather than explicit callbacks
