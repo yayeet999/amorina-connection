@@ -33,7 +33,7 @@ serve(async (req) => {
 
     // Fetch last 3 messages from regular chat history
     const chatHistoryKey = `chat:${userProfile?.id}:messages`;
-    const recentMessages = await redis.lrange(chatHistoryKey, 0, 2); // Get last 3 messages
+    const recentMessages = await redis.lrange(chatHistoryKey, 0, 6); // Get last 3 messages
     console.log('Retrieved recent messages:', recentMessages);
 
     // Process recent messages
