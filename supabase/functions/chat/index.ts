@@ -126,7 +126,7 @@ json\n|\n
     }
 
     const openaiRequest = {
-      model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
