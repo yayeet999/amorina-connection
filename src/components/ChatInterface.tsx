@@ -35,7 +35,6 @@ export function ChatInterface() {
     },
   });
 
-  // Fetch messages from Redis when component mounts
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -64,7 +63,6 @@ export function ChatInterface() {
         }
 
         console.log('Received messages:', data.messages);
-        // Reverse the messages to show newest at the bottom
         setMessages([...data.messages].reverse());
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -91,15 +89,12 @@ export function ChatInterface() {
     try {
       setIsLoading(true);
       
-      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Add user message to the end of the list
       const userMessage = { content, isUser: true, timestamp: Date.now() };
       setMessages(prev => [...prev, userMessage]);
 
-      // Store user message in Redis
       const { error: storeError } = await supabase.functions.invoke('messages', {
         body: {
           action: 'store',
@@ -110,37 +105,24 @@ export function ChatInterface() {
 
       if (storeError) throw storeError;
 
-      // Update message counter
       const { data: counterData, error: counterError } = await supabase.functions.invoke('redis_counter_short', {
         body: { userId: user.id },
       });
 
       if (counterError) throw counterError;
 
-      // If counter hits 5, trigger summarization
       if (counterData?.triggerSummary) {
-        const { data: summaryData, error: summaryError } = await supabase.functions.invoke('gemini_summarize_short', {
+        await supabase.functions.invoke('gemini_summarize_short', {
           body: { userId: user.id },
         });
-
-        if (summaryError) throw summaryError;
-
-        if (summaryData?.summary) {
-          toast({
-            title: "Chat Summary",
-            description: summaryData.summary,
-          });
-        }
       }
 
-      // Get AI response
       const response = await supabase.functions.invoke('chat', {
         body: { message: content, userProfile },
       });
 
       if (response.error) throw new Error(response.error.message);
       
-      // Add AI response to the end of the list
       const aiMessage = {
         content: response.data.reply,
         isUser: false,
@@ -148,7 +130,6 @@ export function ChatInterface() {
       };
       setMessages(prev => [...prev, aiMessage]);
 
-      // Store AI message in Redis
       const { error: aiStoreError } = await supabase.functions.invoke('messages', {
         body: {
           action: 'store',
