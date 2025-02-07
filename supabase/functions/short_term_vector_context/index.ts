@@ -33,6 +33,7 @@ serve(async (req) => {
     }
 
     const redisKey = `user:${userId}:top_context`;
+    console.log('Using Redis key:', redisKey);
 
     switch (action) {
       case 'store': {
@@ -94,8 +95,20 @@ serve(async (req) => {
               .map(msg => msg.metadata?.content)
               .filter(Boolean);
 
-            console.log('Storing context in Redis:', contextMessages);
-            await redis.set(redisKey, JSON.stringify(contextMessages));
+            console.log('Preparing to store in Redis - Context Messages:', contextMessages);
+            
+            // Add more detailed Redis operation logging
+            try {
+              const setResult = await redis.set(redisKey, JSON.stringify(contextMessages));
+              console.log('Redis storage result:', setResult);
+              
+              // Verify the data was stored correctly
+              const storedData = await redis.get(redisKey);
+              console.log('Verification - Data stored in Redis:', storedData);
+            } catch (redisError) {
+              console.error('Redis operation failed:', redisError);
+              throw redisError;
+            }
           }
 
         } catch (queryError) {
@@ -115,21 +128,29 @@ serve(async (req) => {
       }
 
       case 'get_context': {
-        // Retrieve context from Redis
-        const cachedContext = await redis.get(redisKey);
-        const context = cachedContext ? JSON.parse(cachedContext as string) : [];
+        console.log('Attempting to retrieve context from Redis with key:', redisKey);
+        
+        // Add more detailed Redis retrieval logging
+        try {
+          const cachedContext = await redis.get(redisKey);
+          console.log('Raw data retrieved from Redis:', cachedContext);
+          
+          const context = cachedContext ? JSON.parse(cachedContext as string) : [];
+          console.log('Parsed context data:', context);
 
-        console.log('Retrieved context from Redis:', context);
-
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            context 
-          }),
-          { 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              context 
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        } catch (redisError) {
+          console.error('Error retrieving from Redis:', redisError);
+          throw redisError;
+        }
       }
 
       default:
