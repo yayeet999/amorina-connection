@@ -56,21 +56,21 @@ serve(async (req) => {
         });
 
         try {
-          // Create a simple dense vector from the text (this is a basic approach)
+          // Create a sparse vector from the text by selecting non-zero positions
           const encodedData = new TextEncoder().encode(message.trim());
-          const simpleVector = Array.from(encodedData).map(x => x / 255); // Normalize to [0,1]
+          const vectorLength = 384;
+          const sparseVector: Record<number, number> = {};
           
-          // Ensure vector has consistent length by padding or truncating to 384 dimensions
-          const vectorLength = 384; // Match the Upstash Vector index configuration
-          const paddedVector = [...simpleVector];
-          while (paddedVector.length < vectorLength) {
-            paddedVector.push(0);
-          }
-          const finalVector = paddedVector.slice(0, vectorLength);
+          // Only include non-zero values in the sparse vector
+          encodedData.forEach((value, index) => {
+            if (value > 0 && index < vectorLength) {
+              sparseVector[index] = value / 255; // Normalize to [0,1]
+            }
+          });
 
           const upsertResult = await vector.upsert({
             id: `${userId}-${Date.now()}`,
-            vector: finalVector,
+            vector: sparseVector,
             metadata: {
               user_id: userId,
               content: message,
@@ -81,7 +81,7 @@ serve(async (req) => {
           console.log('Vector upsert result:', upsertResult);
 
           const userMessages = await vector.query({
-            vector: finalVector,
+            vector: sparseVector,
             topK: 20,
             includeMetadata: true,
             includeVectors: false,
@@ -99,7 +99,7 @@ serve(async (req) => {
           }
 
           const similarMessages = await vector.query({
-            vector: finalVector,
+            vector: sparseVector,
             topK: 3,
             includeMetadata: true,
             includeVectors: false,
