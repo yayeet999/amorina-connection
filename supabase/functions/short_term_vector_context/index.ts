@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { Index } from "@upstash/vector"
+import { Index } from "https://esm.sh/@upstash/vector@1.0.3"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
