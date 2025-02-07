@@ -60,8 +60,8 @@ serve(async (req) => {
           const encodedData = new TextEncoder().encode(message.trim());
           const simpleVector = Array.from(encodedData).map(x => x / 255); // Normalize to [0,1]
           
-          // Ensure vector has consistent length by padding or truncating
-          const vectorLength = 512; // Choose a fixed length
+          // Ensure vector has consistent length by padding or truncating to 384 dimensions
+          const vectorLength = 384; // Match the Upstash Vector index configuration
           const paddedVector = [...simpleVector];
           while (paddedVector.length < vectorLength) {
             paddedVector.push(0);
