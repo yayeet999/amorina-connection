@@ -13,47 +13,49 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { userId, context } = await req.json()
+    const { userId, context } = await req.json();
     console.log('Received request with userId:', userId);
-    console.log('Context data:', context);
+    console.log('Context data:', JSON.stringify(context));
 
     if (!userId) {
-      throw new Error('userId is required')
+      throw new Error('userId is required');
     }
 
     if (!context || !Array.isArray(context)) {
-      throw new Error('context must be an array')
+      throw new Error('context must be an array');
     }
 
-    // Validate context structure
+    // Validate context structure and types
     context.forEach((item, index) => {
-      if (!item.content || !item.timestamp) {
-        throw new Error(`Invalid context item at index ${index}: must have content and timestamp`)
+      if (!item || typeof item !== 'object') {
+        throw new Error(`Invalid context item at index ${index}: must be an object`);
+      }
+      if (typeof item.content !== 'string') {
+        throw new Error(`Invalid content at index ${index}: must be a string`);
+      }
+      if (typeof item.timestamp !== 'number') {
+        throw new Error(`Invalid timestamp at index ${index}: must be a number`);
       }
     });
 
-    // Test Redis connection
     try {
-      await redis.ping()
-      console.log('Redis connection successful')
+      await redis.ping();
+      console.log('Redis connection successful');
     } catch (redisError) {
-      console.error('Redis connection failed:', redisError)
-      throw new Error('Redis connection failed')
+      console.error('Redis connection failed:', redisError);
+      throw new Error('Redis connection failed');
     }
 
-    // Store context in Redis with key pattern "user:{userId}:context"
-    const key = `user:${userId}:context`
-    console.log('Storing context for user:', userId)
-    console.log('Context:', context)
+    const key = `user:${userId}:context`;
+    console.log('Storing context for user:', userId);
+    console.log('Context to store:', JSON.stringify(context));
 
-    // Store the context as a JSON string
-    await redis.set(key, JSON.stringify(context))
+    await redis.set(key, JSON.stringify(context));
     console.log('Successfully stored context in Redis');
 
     return new Response(
@@ -62,16 +64,16 @@ serve(async (req) => {
         message: 'Context stored successfully'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
+    );
 
   } catch (error) {
-    console.error('Error in redis_short_retrieval:', error)
+    console.error('Error in redis_short_retrieval:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
         details: error.stack
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    )
+    );
   }
-})
+});

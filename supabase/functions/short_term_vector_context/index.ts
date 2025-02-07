@@ -18,7 +18,6 @@ const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!,
 })
 
-// Get embedding from OpenAI
 async function getEmbedding(text: string): Promise<number[]> {
   const response = await openai.embeddings.create({
     model: "text-embedding-3-small",
@@ -30,10 +29,9 @@ async function getEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
-// Function to store context in Redis via redis_short_retrieval
 async function storeContextInRedis(userId: string, context: any) {
   console.log('Attempting to store context in Redis for user:', userId);
-  console.log('Context data:', context);
+  console.log('Context data to store:', JSON.stringify(context));
 
   try {
     const response = await fetch(
@@ -44,14 +42,20 @@ async function storeContextInRedis(userId: string, context: any) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
         },
-        body: JSON.stringify({ userId, context }),
+        body: JSON.stringify({ 
+          userId, 
+          context: context.map((item: any) => ({
+            content: String(item.content),
+            timestamp: Number(item.timestamp)
+          }))
+        }),
       }
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Redis storage failed:', response.status, errorData);
-      throw new Error(`Failed to store context in Redis: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Redis storage failed:', response.status, errorText);
+      throw new Error(`Failed to store context in Redis: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
@@ -64,29 +68,26 @@ async function storeContextInRedis(userId: string, context: any) {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action, userId, message } = await req.json()
+    const { action, userId, message } = await req.json();
+    console.log('Received request:', { action, userId });
 
     if (action === 'store') {
       if (!userId || !message) {
         return new Response(
           JSON.stringify({ error: 'userId and message are required' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        )
+        );
       }
 
       console.log('Processing store action for user:', userId);
-
-      // Generate embedding from the message using OpenAI
       const vector = await getEmbedding(message);
       console.log('Generated embedding vector');
 
-      // Upsert following the exact template structure
       await index.upsert({
         id: `${userId}-${Date.now()}`,
         vector: vector,
@@ -99,7 +100,6 @@ serve(async (req) => {
 
       console.log('Successfully upserted vector');
 
-      // Query for similar vectors
       const similarResults = await index.query({
         vector: vector,
         topK: 3,
@@ -109,42 +109,36 @@ serve(async (req) => {
 
       console.log('Retrieved similar vectors:', similarResults);
 
-      // Extract just the content and timestamp from metadata
       const context = similarResults.map(result => ({
-        content: result.metadata.content,
-        timestamp: result.metadata.timestamp
+        content: String(result.metadata.content),
+        timestamp: Number(result.metadata.timestamp)
       }));
 
       console.log('Prepared context for Redis:', context);
 
-      // Store the context in Redis
       try {
         await storeContextInRedis(userId, context);
         console.log('Successfully stored context in Redis');
       } catch (error) {
         console.error('Failed to store context in Redis:', error);
-        // Continue execution even if Redis storage fails
       }
 
       return new Response(
         JSON.stringify({ success: true, context }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      );
 
     } else if (action === 'get_context') {
       if (!userId) {
         return new Response(
           JSON.stringify({ error: 'userId is required' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        )
+        );
       }
 
       console.log('Processing get_context action for user:', userId);
-
-      // Create a default zero vector for querying
       const defaultVector = new Array(384).fill(0);
 
-      // Query for the most recent context
       const results = await index.query({
         vector: defaultVector,
         topK: 3,
@@ -154,33 +148,30 @@ serve(async (req) => {
 
       console.log('Retrieved vectors for context:', results);
 
-      // Extract just the content and timestamp from metadata
       const context = results.map(result => ({
-        content: result.metadata.content,
-        timestamp: result.metadata.timestamp
+        content: String(result.metadata.content),
+        timestamp: Number(result.metadata.timestamp)
       }));
 
       console.log('Prepared context for Redis:', context);
 
-      // Store the context in Redis
       try {
         await storeContextInRedis(userId, context);
         console.log('Successfully stored context in Redis');
       } catch (error) {
         console.error('Failed to store context in Redis:', error);
-        // Continue execution even if Redis storage fails
       }
 
       return new Response(
         JSON.stringify({ success: true, context }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      );
     }
 
     return new Response(
       JSON.stringify({ error: 'Invalid action' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-    )
+    );
 
   } catch (error) {
     console.error('Error in short_term_vector_context:', error);
@@ -190,6 +181,6 @@ serve(async (req) => {
         details: error.stack
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-    )
+    );
   }
-})
+});
