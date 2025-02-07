@@ -24,6 +24,7 @@ async function getEmbedding(text: string): Promise<number[]> {
     model: "text-embedding-3-small",
     input: text,
     encoding_format: "float",
+    dimensions: 384
   });
   
   return response.data[0].embedding;
