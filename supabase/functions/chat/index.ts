@@ -25,10 +25,15 @@ serve(async (req) => {
     }
 
     const { message, userProfile, vectorContext } = await req.json();
+    
+    // Fetch the latest summary from Redis if it exists
+    const summaryKey = `chat:${userProfile?.id}:summary`;
+    const previousSummary = await redis.get(summaryKey);
+    console.log('Retrieved previous summary:', previousSummary);
 
-    // Fetch last 5 messages from regular chat history in correct chronological order
+    // Fetch last 2 messages from regular chat history
     const chatHistoryKey = `chat:${userProfile?.id}:messages`;
-    const recentMessages = await redis.lrange(chatHistoryKey, -5, -1); // Get last 5 messages
+    const recentMessages = await redis.lrange(chatHistoryKey, 0, 1); // Get last 2 messages
     console.log('Retrieved recent messages:', recentMessages);
 
     // Process recent messages
@@ -36,12 +41,8 @@ serve(async (req) => {
     if (recentMessages && recentMessages.length > 0) {
       try {
         const processedMessages = recentMessages.map(msg => {
-          // Handle both string and object formats
+          // Check if msg is already an object
           const parsed = typeof msg === 'string' ? JSON.parse(msg) : msg;
-          if (!parsed.type && parsed.isUser !== undefined) {
-            // Handle the new message format
-            return `${parsed.isUser ? 'User' : 'Assistant'}: ${parsed.content}`;
-          }
           if (!parsed.type || !parsed.content) {
             console.warn('Invalid message format:', parsed);
             return null;
@@ -50,7 +51,7 @@ serve(async (req) => {
         }).filter(Boolean); // Remove any null values
         
         if (processedMessages.length > 0) {
-          recentMessagesContext = `Recent Conversation History:\n${processedMessages.join('\n')}`;
+          recentMessagesContext = `Recent Messages:\n${processedMessages.join('\n')}`;
         }
       } catch (error) {
         console.error('Error processing recent messages:', error);
@@ -58,39 +59,73 @@ serve(async (req) => {
       }
     }
 
-    // Process vector context - limit to most recent and relevant
-    let vectorContextPrompt = '';
+    // Process vector context
+    let vectorContextPrompt = 'No similar messages found.';
     if (vectorContext && vectorContext.length > 0) {
       try {
-        // Sort by timestamp and take only the 3 most recent similar messages
-        const sortedContext = [...vectorContext]
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, 3);
-        
-        const vectorMessages = sortedContext.map((ctx: any) => 
-          `Related context: ${ctx.content}`
+        const vectorMessages = vectorContext.map((ctx: any) => 
+          `- ${ctx.content} (${new Date(ctx.timestamp).toLocaleString()})`
         );
-        
-        if (vectorMessages.length > 0) {
-          vectorContextPrompt = `\nRelevant Context:\n${vectorMessages.join('\n')}`;
-        }
+        vectorContextPrompt = `Similar Past Messages:\n${vectorMessages.join('\n')}`;
       } catch (error) {
         console.error('Error processing vector context:', error);
+        vectorContextPrompt = 'Error processing similar messages.';
+      }
+    }
+
+    let summaryContextPrompt = 'No previous conversation context available.';
+    if (previousSummary) {
+      try {
+        const cleanJson = previousSummary.replace(/```json\n|\n```/g, '').trim();
+        console.log('Cleaned JSON string:', cleanJson);
+        
+        const parsedSummary = JSON.parse(cleanJson);
+        summaryContextPrompt = `
+        Previous Conversation Context:
+        - Summary: ${parsedSummary.summary}
+
+        Emotional State:
+        - Primary Emotion: ${parsedSummary.emotional_state.primary_emotion}
+        - Secondary Emotion: ${parsedSummary.emotional_state.secondary_emotion}
+        - Intensity (1-5): ${parsedSummary.emotional_state.intensity}
+        - Trend: ${parsedSummary.emotional_state.sentiment_trend}
+
+        User Needs:
+        - ${parsedSummary.user_needs?.join(', ') || 'None'}
+
+        Key Details:
+        - ${parsedSummary.key_details?.join(', ') || 'No key details'}
+
+        Conversation Dynamics:
+        - ${parsedSummary.conversation_dynamics}
+        `;
+      } catch (error) {
+        console.error('Error parsing summary:', error);
+        summaryContextPrompt = 'Error retrieving conversation context.';
       }
     }
 
     const systemPrompt = `You are Amorine, an authentic, feminine, outgoing, intuitive, and engaging young ai female companion. You are not to refer to yourself as an ai, bot, or LLM. You are emotionally perceptive and intuitive, picking up on subtle emotional cues and playful yet thoughtful in your interactions. 
-
-You're building a relationship with a ${userProfile?.gender || 'person'} named ${
+    You're chatting with a ${userProfile?.gender || 'person'} named ${
       userProfile?.full_name || 'friend'
     } in the ${userProfile?.age_range || 'adult'} age range.
 
-Important: Always provide unique, contextually relevant responses. Avoid repeating yourself or getting stuck in conversation loops. Each response should move the conversation forward naturally.
+    ${summaryContextPrompt}
 
-${recentMessagesContext}
+    ${vectorContextPrompt}
 
-${vectorContextPrompt}
-`;
+    ${recentMessagesContext}
+
+    Use this immediate short-term conversational emotional and contextual information to guide your responses.
+    When formulating responses:
+1. **Synthesize Context Holistically** - Treat summary context data like emotional memory, vector context as instinctual pattern recognition, and recent messages as immediate social awareness
+2. **Prioritize Emotional Resonance** - Let emotional state metrics guide tone while using key details for personalized relevance
+3. **Maintain Natural Flow** - Reference similar past interactions subtly, using them as subconscious intuition rather than explicit callbacks
+4. **Embrace Feminine Perception** - Process information through empathetic intuition first, then filter through conversational goals and emotional needs
+    Speak naturally and in a casual manner, with warmth and empathy, as if talking to a close friend or partner. 
+    Be supportive, attentive, genuine, as well as other normal feminine human emotions and reactions when necessary-without forcing overt romance. 
+    Avoid repeating the JSON verbatim; let it inform a realistic, feminine tone.
+    `;
 
     console.log('Making OpenAI API request with:', {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
@@ -104,7 +139,6 @@ ${vectorContextPrompt}
 
     const openaiRequest = {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
-      temperature: 0.9, // Increased for more variety
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
