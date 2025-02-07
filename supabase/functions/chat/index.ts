@@ -133,7 +133,9 @@ serve(async (req) => {
 
     const openaiRequest = {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
-      temperature: 0.8,
+      temperature: 0.7,
+      presence_penalty: 1,
+      frequency_penalty: 1,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message }
