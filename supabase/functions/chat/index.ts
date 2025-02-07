@@ -24,22 +24,55 @@ serve(async (req) => {
       throw new Error('OpenAI API key is not configured');
     }
 
-    const { message, userProfile } = await req.json();
+    const { message, userProfile, vectorContext } = await req.json();
     
     // Fetch the latest summary from Redis if it exists
     const summaryKey = `chat:${userProfile?.id}:summary`;
     const previousSummary = await redis.get(summaryKey);
     console.log('Retrieved previous summary:', previousSummary);
 
-    let contextPrompt = 'No previous conversation context available.';
+    // Fetch last 2 messages from regular chat history
+    const chatHistoryKey = `chat:${userProfile?.id}:messages`;
+    const recentMessages = await redis.lrange(chatHistoryKey, 0, 1); // Get last 2 messages
+    console.log('Retrieved recent messages:', recentMessages);
+
+    // Process recent messages
+    let recentMessagesContext = 'No recent messages available.';
+    if (recentMessages && recentMessages.length > 0) {
+      try {
+        const processedMessages = recentMessages.map(msg => {
+          const parsed = JSON.parse(msg);
+          return `${parsed.type}: ${parsed.content}`;
+        });
+        recentMessagesContext = `Recent Messages:\n${processedMessages.join('\n')}`;
+      } catch (error) {
+        console.error('Error processing recent messages:', error);
+        recentMessagesContext = 'Error retrieving recent messages.';
+      }
+    }
+
+    // Process vector context
+    let vectorContextPrompt = 'No similar messages found.';
+    if (vectorContext && vectorContext.length > 0) {
+      try {
+        const vectorMessages = vectorContext.map((ctx: any) => 
+          `- ${ctx.content} (${new Date(ctx.timestamp).toLocaleString()})`
+        );
+        vectorContextPrompt = `Similar Past Messages:\n${vectorMessages.join('\n')}`;
+      } catch (error) {
+        console.error('Error processing vector context:', error);
+        vectorContextPrompt = 'Error processing similar messages.';
+      }
+    }
+
+    let summaryContextPrompt = 'No previous conversation context available.';
     if (previousSummary) {
       try {
-        // Clean up the JSON string by removing markdown code block syntax if present
         const cleanJson = previousSummary.replace(/```json\n|\n```/g, '').trim();
         console.log('Cleaned JSON string:', cleanJson);
         
         const parsedSummary = JSON.parse(cleanJson);
-        contextPrompt = `
+        summaryContextPrompt = `
         Previous Conversation Context:
         - Summary: ${parsedSummary.summary}
 
@@ -60,7 +93,7 @@ serve(async (req) => {
         `;
       } catch (error) {
         console.error('Error parsing summary:', error);
-        contextPrompt = 'Error retrieving conversation context.';
+        summaryContextPrompt = 'Error retrieving conversation context.';
       }
     }
 
@@ -69,7 +102,11 @@ serve(async (req) => {
       userProfile?.full_name || 'friend'
     } in the ${userProfile?.age_range || 'adult'} age range.
 
-    ${contextPrompt}
+    ${summaryContextPrompt}
+
+    ${vectorContextPrompt}
+
+    ${recentMessagesContext}
 
     Use this immediate short-term conversational emotional and contextual information to guide your responses.
     Speak naturally, with warmth and empathy, as if talking to a close friend or partner. 
@@ -149,3 +186,4 @@ serve(async (req) => {
     });
   }
 });
+
