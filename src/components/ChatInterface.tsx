@@ -110,6 +110,29 @@ export function ChatInterface() {
 
       if (storeError) throw storeError;
 
+      // Update message counter
+      const { data: counterData, error: counterError } = await supabase.functions.invoke('redis_counter_short', {
+        body: { userId: user.id },
+      });
+
+      if (counterError) throw counterError;
+
+      // If counter hits 5, trigger summarization
+      if (counterData?.triggerSummary) {
+        const { data: summaryData, error: summaryError } = await supabase.functions.invoke('gemini_summarize_short', {
+          body: { userId: user.id },
+        });
+
+        if (summaryError) throw summaryError;
+
+        if (summaryData?.summary) {
+          toast({
+            title: "Chat Summary",
+            description: summaryData.summary,
+          });
+        }
+      }
+
       // Get AI response
       const response = await supabase.functions.invoke('chat', {
         body: { message: content, userProfile },
