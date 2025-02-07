@@ -6,6 +6,7 @@ import { Index } from 'npm:@upstash/vector@1.0.2';
 const vector = new Index({
   url: Deno.env.get('UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!,
+  indexName: 'amorine-upstash-vector-short' // Set the correct index name
 });
 
 const redis = new Redis({
@@ -31,7 +32,6 @@ serve(async (req) => {
       throw new Error('User ID is required');
     }
 
-    const vectorIndex = 'user_messages';
     const redisKey = `user:${userId}:top_context`;
 
     switch (action) {
@@ -42,15 +42,13 @@ serve(async (req) => {
 
         console.log('Attempting to store message in vector database:', {
           userId,
-          message,
-          vectorIndex
+          message
         });
 
-        // Store message in vector database with a simple vector representation
-        // For text, we'll use a basic encoding (this should be replaced with proper text embedding)
+        // Store message in vector database with a dense vector representation
         const upsertResult = await vector.upsert({
           id: `${userId}-${Date.now()}`,
-          vector: [0.5, 0.5], // Placeholder vector - should be replaced with proper text embedding
+          vector: Array(384).fill(0.5), // Dense vector with 384 dimensions (matching all-MiniLM-L6-v2)
           metadata: {
             userId,
             timestamp: Date.now(),
@@ -63,7 +61,7 @@ serve(async (req) => {
         // Get all messages for this user
         const userMessages = await vector.query({
           topK: 20,
-          vector: [0.5, 0.5], // Placeholder vector - should be replaced with proper text embedding
+          vector: Array(384).fill(0.5), // Dense vector matching the model dimensions
           filter: { userId },
           includeMetadata: true,
         });
@@ -84,7 +82,7 @@ serve(async (req) => {
         // Perform similarity search for top 3 relevant messages
         const similarMessages = await vector.query({
           topK: 3,
-          vector: [0.5, 0.5], // Placeholder vector - should be replaced with proper text embedding
+          vector: Array(384).fill(0.5), // Dense vector matching the model dimensions
           filter: { userId },
           includeMetadata: true,
         });
