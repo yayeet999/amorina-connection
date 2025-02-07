@@ -25,15 +25,10 @@ serve(async (req) => {
     }
 
     const { message, userProfile, vectorContext } = await req.json();
-    
-    // Fetch the latest summary from Redis if it exists
-    const summaryKey = `chat:${userProfile?.id}:summary`;
-    const previousSummary = await redis.get(summaryKey);
-    console.log('Retrieved previous summary:', previousSummary);
 
-    // Fetch last 2 messages from regular chat history
+    // Fetch last 3 messages from regular chat history
     const chatHistoryKey = `chat:${userProfile?.id}:messages`;
-    const recentMessages = await redis.lrange(chatHistoryKey, 0, 1); // Get last 2 messages
+    const recentMessages = await redis.lrange(chatHistoryKey, 0, 2); // Get last 3 messages
     console.log('Retrieved recent messages:', recentMessages);
 
     // Process recent messages
@@ -70,38 +65,6 @@ serve(async (req) => {
       } catch (error) {
         console.error('Error processing vector context:', error);
         vectorContextPrompt = 'Error processing similar messages.';
-      }
-    }
-
-    let summaryContextPrompt = 'No previous conversation context available.';
-    if (previousSummary) {
-      try {
-        const cleanJson = previousSummary.replace(/```json\n|\n```/g, '').trim();
-        console.log('Cleaned JSON string:', cleanJson);
-        
-        const parsedSummary = JSON.parse(cleanJson);
-        summaryContextPrompt = `
-        Previous Conversation Context:
-        - Summary: ${parsedSummary.summary}
-
-        Emotional State:
-        - Primary Emotion: ${parsedSummary.emotional_state.primary_emotion}
-        - Secondary Emotion: ${parsedSummary.emotional_state.secondary_emotion}
-        - Intensity (1-5): ${parsedSummary.emotional_state.intensity}
-        - Trend: ${parsedSummary.emotional_state.sentiment_trend}
-
-        User Needs:
-        - ${parsedSummary.user_needs?.join(', ') || 'None'}
-
-        Key Details:
-        - ${parsedSummary.key_details?.join(', ') || 'No key details'}
-
-        Conversation Dynamics:
-        - ${parsedSummary.conversation_dynamics}
-        `;
-      } catch (error) {
-        console.error('Error parsing summary:', error);
-        summaryContextPrompt = 'Error retrieving conversation context.';
       }
     }
 
