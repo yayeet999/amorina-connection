@@ -1,6 +1,12 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Redis } from 'https://deno.land/x/upstash_redis@v1.22.0/mod.ts';
+
+const redis = new Redis({
+  url: Deno.env.get('UPSTASH_REDIS_REST_URL')!,
+  token: Deno.env.get('UPSTASH_REDIS_REST_TOKEN')!,
+});
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,10 +25,17 @@ serve(async (req) => {
     }
 
     const { message, userProfile } = await req.json();
+    
+    // Fetch the latest summary from Redis if it exists
+    const summaryKey = `chat:${userProfile?.id}:summary`;
+    const previousSummary = await redis.get(summaryKey);
+    console.log('Retrieved previous summary:', previousSummary);
 
     const systemPrompt = `You are Amorine, a compassionate and understanding AI companion. 
     You're chatting with a ${userProfile?.gender || 'person'} named ${userProfile?.full_name || 'friend'} 
-    in the ${userProfile?.age_range || 'adult'} age range. Keep responses warm, personal, and engaging.`;
+    in the ${userProfile?.age_range || 'adult'} age range. 
+    ${previousSummary ? `Previous conversation context: ${previousSummary}` : 'No previous conversation context available.'}
+    Keep responses warm, personal, and engaging.`;
 
     console.log('Making OpenAI API request with:', {
       model: 'ft:gpt-4o-mini-2024-07-18:practice:comb1-27:AuEcwhks',
@@ -96,3 +109,4 @@ serve(async (req) => {
     });
   }
 });
+
