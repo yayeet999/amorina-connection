@@ -106,7 +106,7 @@ export function ChatInterface() {
 
       if (storeError) throw storeError;
 
-      // Store in vector context
+      // Store user message in vector context
       const { error: vectorError } = await supabase.functions.invoke('short_term_vector_context', {
         body: {
           action: 'store',
@@ -159,7 +159,7 @@ export function ChatInterface() {
       };
       setMessages(prev => [...prev, aiMessage]);
 
-      // Store AI message in regular chat history
+      // Store AI message in regular chat history only (not in vector context)
       const { error: aiStoreError } = await supabase.functions.invoke('messages', {
         body: {
           action: 'store',
@@ -169,19 +169,6 @@ export function ChatInterface() {
       });
 
       if (aiStoreError) throw aiStoreError;
-
-      // Store AI message in vector context
-      const { error: aiVectorError } = await supabase.functions.invoke('short_term_vector_context', {
-        body: {
-          action: 'store',
-          userId: user.id,
-          message: aiMessage.content
-        },
-      });
-
-      if (aiVectorError) {
-        console.error('Error storing AI message vector context:', aiVectorError);
-      }
       
     } catch (error) {
       console.error('Error sending message:', error);
@@ -212,4 +199,3 @@ export function ChatInterface() {
     </div>
   );
 }
-

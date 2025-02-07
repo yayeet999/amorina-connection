@@ -6,7 +6,7 @@ import { Index } from 'npm:@upstash/vector@1.0.2';
 const vector = new Index({
   url: Deno.env.get('UPSTASH_VECTOR_REST_URL')!,
   token: Deno.env.get('UPSTASH_VECTOR_REST_TOKEN')!,
-  indexName: 'amorine-upstash-vector-short' // Set the correct index name
+  indexName: 'amorine-upstash-vector-short'
 });
 
 const redis = new Redis({
@@ -48,11 +48,11 @@ serve(async (req) => {
         // Store message in vector database with a dense vector representation
         const upsertResult = await vector.upsert({
           id: `${userId}-${Date.now()}`,
-          vector: Array(384).fill(0.5), // Dense vector with 384 dimensions (matching all-MiniLM-L6-v2)
+          vector: Array(384).fill(0.5),
           metadata: {
-            userId,
-            timestamp: Date.now(),
+            userId: userId,
             content: message,
+            timestamp: Date.now(),
           }
         });
 
@@ -61,8 +61,8 @@ serve(async (req) => {
         // Get all messages for this user
         const userMessages = await vector.query({
           topK: 20,
-          vector: Array(384).fill(0.5), // Dense vector matching the model dimensions
-          filter: { userId },
+          vector: Array(384).fill(0.5),
+          filter: { userId: userId },
           includeMetadata: true,
         });
 
@@ -82,8 +82,8 @@ serve(async (req) => {
         // Perform similarity search for top 3 relevant messages
         const similarMessages = await vector.query({
           topK: 3,
-          vector: Array(384).fill(0.5), // Dense vector matching the model dimensions
-          filter: { userId },
+          vector: Array(384).fill(0.5),
+          filter: { userId: userId },
           includeMetadata: true,
         });
 
